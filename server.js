@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const playerRoutes = require('./routes/players');
+const UserRoutes = require('./routes/users');
+const teamRoutes = require('./routes/teams');
 
 
 const app = express();
@@ -15,6 +17,8 @@ mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongo
 
 // Rutas para la API
 app.use('/api', playerRoutes);
+app.use('/api', UserRoutes);
+app.use('/api', teamRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

@@ -5,6 +5,8 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   equiposCreados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }], // Referencia a la colección de equipos
   whatsapp: { type: String, required: true },
+  password: { type: String, required: true },
+  
 });
 
 const User = mongoose.model('User', userSchema);

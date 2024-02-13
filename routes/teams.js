@@ -25,6 +25,7 @@ router.post('/teams', async (req, res) => {
       creador,
       localidad,
       instagram,
+      agregadoPor:req.session.user.userId,
     });
 
     const savedTeam = await newTeam.save();

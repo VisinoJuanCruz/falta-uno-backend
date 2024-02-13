@@ -25,6 +25,7 @@ router.post('/players', async (req, res) => {
       puntajeAtacando,
       puntajeDefendiendo,
       puntajeAtajando,
+      agregadoPor: req.session.user.userId,
     });
 
     const savedPlayer = await newPlayer.save();

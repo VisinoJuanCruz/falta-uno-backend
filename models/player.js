@@ -6,7 +6,7 @@ const playerSchema = new mongoose.Schema({
   puntajeAtacando: { type: Number, required: true },
   puntajeDefendiendo: { type: Number, required: true },
   puntajeAtajando: { type: Number, required: true },
-  agregadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+  equipo: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', required: true }, 
 });
 
 const Player = mongoose.model('Player', playerSchema);

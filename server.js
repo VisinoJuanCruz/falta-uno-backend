@@ -9,6 +9,8 @@ const authRoutes = require('./routes/auth'); // Rutas de autenticación
 const playerRoutes = require('./routes/players');
 const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
+const canchasRoutes = require('./routes/canchas');
+const clients = require('./routes/clients');
 
 require('./config/passport-config');
 const app = express();
@@ -18,6 +20,9 @@ app.use(cors());
 app.use(express.json());
 
 mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongodb.net/');
+
+
+
 
 // Configuración de express-session
 app.use(session({
@@ -35,6 +40,8 @@ app.use('/api', authRoutes);
 app.use('/api', playerRoutes);
 app.use('/api', userRoutes);
 app.use('/api', teamRoutes);
+app.use('/api', canchasRoutes);
+app.use('/api', clients);
 
 
 

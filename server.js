@@ -1,5 +1,3 @@
-// server.js
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -10,7 +8,7 @@ const playerRoutes = require('./routes/players');
 const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
-const clients = require('./routes/clients');
+const complejosRoutes = require('./routes/complejos')
 
 require('./config/passport-config');
 const app = express();
@@ -20,7 +18,6 @@ app.use(cors());
 app.use(express.json());
 
 mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongodb.net/');
-
 
 
 
@@ -41,9 +38,7 @@ app.use('/api', playerRoutes);
 app.use('/api', userRoutes);
 app.use('/api', teamRoutes);
 app.use('/api', canchasRoutes);
-app.use('/api', clients);
-
-
+app.use('/api', complejosRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

@@ -7,7 +7,7 @@ const router = express.Router();
 // Obtener todos los usuarios
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().populate('complejos');
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
@@ -19,7 +19,7 @@ router.get('/users/:userId', async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('complejos');
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
@@ -45,7 +45,9 @@ router.post('/users', async (req, res) => {
       name,
       whatsapp,
       equiposCreados: [], // Agrega la propiedad equiposCreados como un array vacío
-    });
+      role: 'Usuario',
+      complejos: [] //
+      });
 
     const savedUser = await newUser.save();
     console.log('Usuario guardado:', savedUser);

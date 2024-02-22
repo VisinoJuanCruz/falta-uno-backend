@@ -7,25 +7,25 @@ router.get('/', async (req, res) => {
   try {
     const canchas = await Cancha.find();
     res.json(canchas);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
 // Crear una nueva cancha
 router.post('/', async (req, res) => {
   const cancha = new Cancha({
-    nombre: req.body.nombre,
-    tipo: req.body.tipo,
+    capacidadJugadores: req.body.capacidadJugadores,
     alAireLibre: req.body.alAireLibre,
-    disponibilidad: req.body.disponibilidad
+    materialPiso: req.body.materialPiso,
+    precio:req.body.precio,
   });
 
   try {
     const nuevaCancha = await cancha.save();
     res.status(201).json(nuevaCancha);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
 

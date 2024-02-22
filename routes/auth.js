@@ -25,10 +25,11 @@ router.post('/login', async (req, res) => {
         return res.status(500).json({ message: 'Error al iniciar sesión' });
       }
       console.log('Inicio de sesión exitoso');
+      await user.populate('complejos')
       // Generar token JWT
       const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
       // Devolver los datos del usuario sin la contraseña
-      const userData = { _id: user._id, name: user.name, mail: user.mail, whatsapp: user.whatsapp, equiposCreados: user.equiposCreados };
+      const userData = { _id: user._id, name: user.name, mail: user.mail, whatsapp: user.whatsapp, equiposCreados: user.equiposCreados, role: user.role, complejos: user.complejos };
       return res.json({ token, user: userData });
     });
   })(req, res);
@@ -53,7 +54,7 @@ const authenticateJWT = (req, res, next) => {
 // Ruta para obtener el perfil del usuario autenticado
 router.get('/profile', authenticateJWT, (req, res) => {
   // Devolver los datos del usuario sin la contraseña
-  const userData = { _id: req.user._id, name: req.user.name, mail: req.user.mail, whatsapp: req.user.whatsapp, equiposCreados: req.user.equiposCreados };
+  const userData = { _id: req.user._id, name: req.user.name, mail: req.user.mail, whatsapp: req.user.whatsapp, equiposCreados: req.user.equiposCreados, role: req.user.role, complejos: req.user.complejos };
   res.json(userData);
 });
 

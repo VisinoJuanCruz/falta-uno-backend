@@ -3,15 +3,16 @@ const router = express.Router();
 const Complejo = require('../models/complejo');
 const User = require('../models/user');
 
-// Obtener todos los complejos
+
 router.get('/complejos', async (req, res) => {
   try {
-    const complejos = await Complejo.find().populate('user'); // Popula el campo 'equipo' con la información del equipo
+    const complejos = await Complejo.find().populate('canchas');
     res.json(complejos);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 // Obtener un complejo por ID
 router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;

@@ -9,6 +9,7 @@ const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
 const complejosRoutes = require('./routes/complejos')
+const reservasRoutes = require('./routes/reservas')
 
 require('./config/passport-config');
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api', userRoutes);
 app.use('/api', teamRoutes);
 app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
+app.use('/api', reservasRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

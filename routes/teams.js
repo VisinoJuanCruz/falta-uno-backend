@@ -2,6 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const Team = require('../models/team');
 const Player = require('../models/player');
+const User = require('../models/user');
 
 const router = express.Router();
 
@@ -30,6 +31,7 @@ router.post('/teams', async (req, res) => {
     });
 
     const savedTeam = await newTeam.save();
+    await User.findByIdAndUpdate(creadoPor, { $push: { equiposCreados: savedTeam._id } });
     res.status(201).json(savedTeam);
   } catch (error) {
     console.error('Error al crear equipo:', error);

@@ -1,11 +1,12 @@
-// Obtener todas las reservas
 const express = require('express');
 const router = express.Router();
 const Reserva = require('../models/reserva');
+const Cancha = require('../models/cancha');
 
+// Obtener todas las reservas
 router.get('/reservas', async (req, res) => {
   try {
-    const { fecha, canchaId, page = 1, limit = 10 } = req.query;
+    const { fecha, canchaId, page = 1, limit = 50 } = req.query;
     const query = {};
 
     // Agregar parámetros de filtrado si están presentes
@@ -32,7 +33,6 @@ router.get('/reservas', async (req, res) => {
 
     // Consultar la base de datos con los parámetros proporcionados
     const reservas = await Reserva.paginate(query, options);
-    console.log(reservas);
     // Enviar los resultados paginados al cliente
     res.json(reservas);
   } catch (error) {
@@ -41,23 +41,39 @@ router.get('/reservas', async (req, res) => {
   }
 });
 
-
-
-// Crear una nueva reserva
+// Crear una nueva reserva o cambiar el estado de una reserva existente
 router.post('/reservas', async (req, res) => {
-  const reserva = new Reserva({
-    canchaId: req.body.canchaId,
-    fecha: req.body.fecha,
-    horaInicio: req.body.horaInicio,
-    horaFin: req.body.horaFin,
-    precio: req.body.precio,
-    canchaId:req.body.canchaId,
-  });
+  const { canchaId, fecha, horaInicio, precio } = req.body;
 
-  
   try {
+    // Verificar si ya hay una reserva para este horario y esta cancha
+    const existingReserva = await Reserva.findOne({
+      canchaId,
+      fecha,
+      horaInicio
+    });
+
+    if (existingReserva) {
+      // Si la reserva existe, cambiar su estado de reservado
+      existingReserva.reservado = !existingReserva.reservado;
+      const updatedReserva = await existingReserva.save();
+      return res.status(200).json(updatedReserva);
+    }
+
+    // Si no existe una reserva, crear una nueva
+    const reserva = new Reserva({
+      canchaId,
+      fecha,
+      horaInicio,
+      horaFin: horaInicio + 1,
+      precio,
+      reservado: true // Marcar como reservado al crear una nueva reserva
+    });
+
     const savedReserva = await reserva.save();
+    await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
     res.status(201).json(savedReserva);
+    
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -68,15 +84,26 @@ router.put('/reservas/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const reserva = await Reserva.findByIdAndUpdate(id, req.body, { new: true });
+    // Encontrar la reserva por ID
+    const reserva = await Reserva.findById(id);
     if (!reserva) {
       return res.status(404).json({ message: 'Reserva no encontrada' });
     }
-    res.json(reserva);
+
+    // Actualizar el estado de 'reservado' a su valor opuesto
+    reserva.reservado = !reserva.reservado;
+    const updatedReserva = await reserva.save();
+
+    // Devolver la reserva actualizada como respuesta
+    res.json(updatedReserva);
+    console.log("UPDATE RESERVA:", updatedReserva)
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    // Manejar errores
+    console.error(err.message);
+    res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
+
 
 // Eliminar una reserva
 router.delete('/reservas/:id', async (req, res) => {

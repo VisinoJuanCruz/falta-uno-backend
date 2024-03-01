@@ -13,6 +13,7 @@ router.get('/complejos', async (req, res) => {
   }
 });
 
+
 // Obtener un complejo por ID
 router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
@@ -28,6 +29,8 @@ router.get('/complejos/:complejoId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+
 
 // Crear un nuevo complejo
 router.post('/complejos', async (req, res) => {

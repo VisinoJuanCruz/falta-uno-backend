@@ -20,7 +20,7 @@ router.get('/reservas', async (req, res) => {
       fechaFin.setDate(fechaInicio.getDate() + 1);
 
       // Agregar la condición de filtrado para que esté entre la fecha de inicio y fin del día
-      query.fecha = { $gte: fechaInicio, $lt: fechaFin };
+      query.horaInicio = { $gte: fechaInicio, $lt: fechaFin };
     }
     if (canchaId) {
       query.canchaId = canchaId;
@@ -43,33 +43,43 @@ router.get('/reservas', async (req, res) => {
 
 // Crear una nueva reserva o cambiar el estado de una reserva existente
 router.post('/reservas', async (req, res) => {
-  const { canchaId, fecha, horaInicio, precio } = req.body;
+  const { canchaId,  precio } = req.body;
+  const horaInicio = new Date(req.body.horaInicio);
+if (isNaN(horaInicio.getTime())) {
+  return res.status(400).json({ message: 'La hora de inicio proporcionada no es válida.' });
+}
 
+console.log(canchaId,horaInicio,precio)
+    const horaFin = new Date(horaInicio.getTime() + 3600000)
+    console.log("LA HORA DE FIN QUEDA:", horaFin)
   try {
     // Verificar si ya hay una reserva para este horario y esta cancha
+    
     const existingReserva = await Reserva.findOne({
       canchaId,
-      fecha,
       horaInicio
     });
-
+    
+    
     if (existingReserva) {
+      
       // Si la reserva existe, cambiar su estado de reservado
       existingReserva.reservado = !existingReserva.reservado;
       const updatedReserva = await existingReserva.save();
       return res.status(200).json(updatedReserva);
     }
-
+    
+    
     // Si no existe una reserva, crear una nueva
     const reserva = new Reserva({
       canchaId,
-      fecha,
       horaInicio,
-      horaFin: horaInicio + 1,
+      horaFin: new Date(horaInicio.getTime() + 3600000), // Sumar una hora en milisegundos
       precio,
       reservado: true // Marcar como reservado al crear una nueva reserva
     });
-
+    console.log(reserva)
+    
     const savedReserva = await reserva.save();
     await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
     res.status(201).json(savedReserva);

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Complejo = require('../models/complejo');
 const User = require('../models/user');
+const Reserva = require('../models/reserva');
 
 
 router.get('/complejos', async (req, res) => {
@@ -10,6 +11,47 @@ router.get('/complejos', async (req, res) => {
     res.json(complejos);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/complejos-con-cancha-libre', async (req, res) => {
+  
+  try {
+    const { fecha, hora } = req.query;
+    console.log("FECHA AL BACK:", fecha)
+    console.log("HORA AL BACK:", hora)
+
+    // Busca todas las reservas en la fecha y hora especificadas
+    const reservas = await Reserva.find({
+      fecha: fecha,
+      horaInicio: hora,
+      reservado: true // Solo reservas que están marcadas como "reservado"
+    });
+
+    // Obtén los IDs de las canchas que están reservadas en la fecha y hora especificadas
+    const canchasReservadas = reservas.map(reserva => reserva.canchaId);
+
+    // Busca todas las canchas que no están en la lista de canchas reservadas
+    // o aquellas reservas con fecha y hora pero con la propiedad reservado en false
+    const canchasLibres = await Cancha.find({
+      $or: [
+        { _id: { $nin: canchasReservadas } }, // Excluye las canchas reservadas
+        { $and: [{ _id: { $in: canchasReservadas } }, { 'reservas.reservado': false }] } // Incluye las canchas reservadas pero no reservadas
+      ]
+    });
+
+    // Obtén los IDs de los complejos asociados a las canchas libres
+    const complejosIds = canchasLibres.map(cancha => cancha.complejoAlQuePertenece);
+
+    // Busca los complejos asociados a las canchas libres
+    const complejos = await Complejo.find({
+      _id: { $in: complejosIds } // Filtra por los IDs de los complejos
+    });
+
+    res.json(complejos); // Devuelve los complejos encontrados
+  } catch (error) {
+    console.error('Error al obtener los complejos con cancha libre:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
 

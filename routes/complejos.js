@@ -92,6 +92,8 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
         const reservas = await Reserva.find({
           canchaId: cancha._id,
           horaInicio: fecha, // Buscar reservas con horaInicio igual a la fecha seleccionada
+          reservado:true
+          
         });
 
         // Si no hay reservas para la cancha en la fecha seleccionada, establecer la bandera como verdadera

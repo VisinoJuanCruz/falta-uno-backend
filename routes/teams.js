@@ -68,4 +68,17 @@ router.post('/teams/:id/add-player', async (req, res) => {
   }
 });
 
+// Obtener los equipos de un usuario específico
+router.get('/teams/user/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const teams = await Team.find({ creadoPor: userId });
+    res.json(teams);
+  } catch (error) {
+    console.error('Error al obtener equipos del usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener equipos del usuario' });
+  }
+});
+
+
 module.exports = router;

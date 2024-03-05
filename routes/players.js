@@ -5,11 +5,27 @@ const Team = require('../models/team');
 
 const router = express.Router();
 
-// Obtener todos los jugadores
+// Obtener todos los jugadores con paginación
 router.get('/players', async (req, res) => {
+  const page = parseInt(req.query.page) || 1; // Página solicitada (predeterminada: 1)
+  const limit = parseInt(req.query.limit) || 16; // Tamaño de la página (predeterminado: 10)
+
   try {
-    const players = await Player.find().populate('equipo'); // Popula el campo 'equipo' con la información del equipo
-    res.json(players);
+    const count = await Player.countDocuments();
+    const totalPages = Math.ceil(count / limit);
+    const skip = (page - 1) * limit;
+
+    const players = await Player.find()
+      .populate('equipo')
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      totalPlayers: count,
+      totalPages,
+      currentPage: page,
+      players
+    });
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
   }

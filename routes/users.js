@@ -19,7 +19,7 @@ router.get('/users/:userId', async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const user = await User.findById(userId).populate('complejos');
+    const user = await User.findById(userId).populate('complejos').populate('equiposCreados')
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }

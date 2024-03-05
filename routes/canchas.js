@@ -14,6 +14,23 @@ router.get('/canchas', async (req, res) => {
   }
 });
 
+// Obtener información de una cancha específica
+router.get('/canchas/:canchaId', async (req, res) => {
+  const { canchaId } = req.params;
+
+  try {
+    const cancha = await Cancha.findById(canchaId);
+    if (!cancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+    res.json(cancha);
+  } catch (error) {
+    console.error('Error al obtener información de la cancha:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 // Crear una nueva cancha
 router.post('/canchas', async (req, res) => {
 
@@ -29,7 +46,9 @@ router.post('/canchas', async (req, res) => {
     materialPiso: req.body.materialPiso,
     precio:req.body.precio,
     complejoAlQuePertenece: req.body.complejoAlQuePertenece,
-    reservas:[]
+    reservas:[],
+    imagen: req.body.imagen,
+    nombre: req.body.nombre
   });
 
   try {

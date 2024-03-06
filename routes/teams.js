@@ -16,6 +16,23 @@ router.get('/teams', async (req, res) => {
   }
 });
 
+// Obtener un team por ID
+router.get('/teams/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ message: 'Team no encontrado' });
+    }
+    res.json(team);
+  } catch (error) {
+    console.error('Error al obtener team por ID:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 // Crear un nuevo equipo
 router.post('/teams', async (req, res) => {
   try {

@@ -26,6 +26,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
+    console.log("DEVUELVE ESTO dsadsa:",complejo)
     res.json(complejo);
   } catch (error) {
     console.error('Error al obtener complejo por ID:', error);

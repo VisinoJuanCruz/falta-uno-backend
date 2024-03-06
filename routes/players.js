@@ -65,4 +65,26 @@ router.post('/players', async (req, res) => {
   }
 });
 
+// Obtener todos los jugadores de un equipo por su teamId
+router.get('/players/by-team/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    // Verificar si el equipo existe
+    const teamExists = await Team.findById(teamId);
+    if (!teamExists) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    // Buscar todos los jugadores que pertenecen al equipo con el ID proporcionado
+    const players = await Player.find({ equipo: teamId });
+
+    res.json(players);
+  } catch (error) {
+    console.error('Error al obtener jugadores por teamId:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener jugadores por teamId' });
+  }
+});
+
+
 module.exports = router;

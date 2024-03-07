@@ -38,10 +38,13 @@ router.post('/teams', async (req, res) => {
   try {
     const { creadoPor, jugadores, escudo, localidad, instagram, nombre } = req.body;
 
+    // Si el campo escudo está vacío, asignar la imagen predeterminada
+    const escudoUrl = escudo || 'https://i.pinimg.com/originals/5a/f3/f2/5af3f2e3d949a142fb666dd04136380f.jpg';
+
     const newTeam = new Team({
       jugadores,
       nombre,
-      escudo,
+      escudo: escudoUrl,
       localidad,
       instagram,
       creadoPor, // Utiliza el userId obtenido del usuario autenticado
@@ -55,6 +58,7 @@ router.post('/teams', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al crear equipo' });
   }
 });
+
 
 // Agregar un jugador a un equipo
 router.post('/teams/:id/add-player', async (req, res) => {

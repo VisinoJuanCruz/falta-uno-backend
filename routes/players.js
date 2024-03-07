@@ -86,5 +86,28 @@ router.get('/players/by-team/:teamId', async (req, res) => {
   }
 });
 
+router.delete('/players/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+
+  try {
+    // Buscar al jugador por su ID
+    const player = await Player.findById(playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+
+    // Eliminar al jugador de la base de datos
+    await Player.findByIdAndDelete(playerId);
+
+    // Eliminar al jugador de la lista de jugadores del equipo
+    await Team.findByIdAndUpdate(player.equipo, { $pull: { jugadores: playerId } });
+
+    res.json({ message: 'Jugador eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar jugador:', error);
+    res.status(500).json({ error: 'Error interno del servidor al eliminar jugador' });
+  }
+});
+
 
 module.exports = router;

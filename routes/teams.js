@@ -101,5 +101,29 @@ router.get('/teams/user/:userId', async (req, res) => {
   }
 });
 
+// Eliminar un equipo y sus jugadores asociados
+router.delete('/teams/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    // Busca y elimina el equipo por su ID
+    const deletedTeam = await Team.findByIdAndDelete(teamId);
+    if (!deletedTeam) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    // Elimina todos los jugadores asociados al equipo eliminado
+    await Player.deleteMany({ equipo: teamId });
+
+    // Quita el equipo de la lista de equipos creados del usuario que lo creó
+    await User.updateOne({ _id: deletedTeam.creadoPor }, { $pull: { equiposCreados: teamId } });
+
+    res.status(200).json({ message: 'Equipo eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar equipo:', error);
+    res.status(500).json({ error: 'Error interno del servidor al eliminar equipo' });
+  }
+});
+
 
 module.exports = router;

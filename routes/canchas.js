@@ -92,4 +92,29 @@ router.post('/canchas/:canchaId/reservar', async (req, res) => {
   }
 });
 
+// Eliminar una cancha específica
+router.delete('/canchas/:canchaId', async (req, res) => {
+  const { canchaId } = req.params;
+
+  try {
+    // Eliminar la cancha por su ID
+    const deletedCancha = await Cancha.findByIdAndDelete(canchaId);
+    if (!deletedCancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+
+    // Eliminar la referencia de la cancha en el complejo
+    await Complejo.updateOne(
+      { canchas: canchaId },
+      { $pull: { canchas: canchaId } }
+    );
+
+    res.json({ message: 'Cancha eliminada exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar la cancha:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 module.exports = router;

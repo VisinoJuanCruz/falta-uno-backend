@@ -32,6 +32,31 @@ router.get('/teams/:teamId', async (req, res) => {
   }
 });
 
+router.put('/teams/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+  const { nombre, escudo, localidad, instagram } = req.body;
+
+  try {
+    const team = await Team.findByIdAndUpdate(teamId, {
+      nombre,
+      escudo,
+      localidad,
+      instagram,
+      
+    }, { new: true });
+
+    if (!team) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    res.json(team);
+  } catch (error) {
+    console.error('Error al editar equipo:', error);
+    res.status(500).json({ error: 'Error interno del servidor al editar equipo' });
+  }
+});
+
+
 
 // Crear un nuevo equipo
 router.post('/teams', async (req, res) => {

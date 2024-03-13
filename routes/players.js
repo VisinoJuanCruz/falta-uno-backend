@@ -65,6 +65,50 @@ router.post('/players', async (req, res) => {
   }
 });
 
+// Obtener un jugador por su ID
+router.get('/players/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+
+  try {
+    const player = await Player.findById(playerId).populate('equipo');
+
+    if (!player) {
+      return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+
+    res.json(player);
+  } catch (error) {
+    console.error('Error al obtener jugador por ID:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener jugador por ID' });
+  }
+});
+
+// Editar un jugador por su ID
+router.put('/players/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+  const { name, image, puntajeAtacando, puntajeDefendiendo, puntajeAtajando } = req.body;
+
+  try {
+    const player = await Player.findByIdAndUpdate(playerId, {
+      name,
+      image,
+      puntajeAtacando,
+      puntajeDefendiendo,
+      puntajeAtajando
+    }, { new: true });
+
+    if (!player) {
+      return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+
+    res.json(player);
+  } catch (error) {
+    console.error('Error al editar jugador:', error);
+    res.status(500).json({ error: 'Error interno del servidor al editar jugador' });
+  }
+});
+
+
 // Obtener todos los jugadores de un equipo por su teamId
 router.get('/players/by-team/:teamId', async (req, res) => {
   const { teamId } = req.params;

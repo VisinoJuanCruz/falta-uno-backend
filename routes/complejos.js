@@ -22,7 +22,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
 
   try {
-    const complejo = await Complejo.findById(complejoId);
+    const complejo = await Complejo.findById(complejoId).populate('canchas');
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
@@ -71,6 +71,33 @@ router.post('/complejos', async (req, res) => {
   }
 });
 
+// Editar un complejo por su ID
+router.put('/complejos/:complejoId', async (req, res) => {
+  const { complejoId } = req.params;
+  const { nombre, imagen, direccion, telefono, whatsapp, instagram } = req.body;
+
+  try {
+    const complejo = await Complejo.findByIdAndUpdate(complejoId, {
+      nombre,
+      imagen ,
+      direccion,
+      telefono,
+      whatsapp,
+      instagram
+    }, { new: true });
+
+    if (!complejo) {
+      return res.status(404).json({ error: 'Complejo no encontrado' });
+    }
+
+    res.json(complejo);
+  } catch (error) {
+    console.error('Error al editar complejo:', error);
+    res.status(500).json({ error: 'Error interno del servidor al editar complejo' });
+  }
+});
+
+
 
 
 //BUSQUEDAS:
@@ -117,6 +144,8 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
     throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
   }
 };
+
+
 
 
 // Endpoint para buscar complejos con canchas libres en una fecha y hora específicas

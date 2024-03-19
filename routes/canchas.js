@@ -60,6 +60,22 @@ router.post('/canchas', async (req, res) => {
   }
 });
 
+//Editar una cancha por su ID
+router.put('/canchas/:canchaId', async (req, res) => {
+  const { canchaId } = req.params;
+  const { nombre, capacidadJugadores, alAireLibre, materialPiso, precio, imagen } = req.body;
+
+  try {
+    const updatedCancha = await Cancha.findByIdAndUpdate(canchaId, { nombre, capacidadJugadores, alAireLibre, materialPiso, precio, imagen }, { new: true });
+    if (!updatedCancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+    res.json(updatedCancha);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 // En el archivo de rutas para las canchas
 router.post('/canchas/:canchaId/reservar', async (req, res) => {
   const { canchaId } = req.params;

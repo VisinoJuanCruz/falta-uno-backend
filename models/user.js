@@ -6,10 +6,9 @@ const userSchema = new mongoose.Schema({
   equiposCreados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
   whatsapp: { type: String, required: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['Usuario', 'Cliente','Superuser'], default: 'Usuario' },
+  role: { type: String, enum: ['Usuario', 'Cliente', 'Superuser'], default: 'Usuario' },
   complejos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Complejo' }] // Referencia al modelo de complejo
 });
-
 
 const User = mongoose.model('User', userSchema);
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
+const sendWelcomeEmail = require('../utils/mailer');
 
 const router = express.Router();
 
@@ -51,6 +52,7 @@ router.post('/users', async (req, res) => {
 
     const savedUser = await newUser.save();
     console.log('Usuario guardado:', savedUser);
+    await sendWelcomeEmail(newUser.mail);
     res.status(201).json(savedUser);
   } catch (error) {
     console.error('Error al agregar usuario:', error);

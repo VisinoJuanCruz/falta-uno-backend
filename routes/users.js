@@ -103,5 +103,30 @@ router.put('/profile/change-password', passport.authenticate('jwt', { session: f
   }
 });
 
+router.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    // Busca al usuario por su token de restablecimiento de contraseña
+    const user = await User.findOne({ resetPasswordToken: token });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Token no válido o expirado. Por favor, solicita un nuevo enlace para restablecer la contraseña.' });
+    }
+
+    // Cambia la contraseña del usuario y elimina el token de restablecimiento
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    await user.save();
+
+    res.json({ message: 'Contraseña restablecida exitosamente' });
+  } catch (error) {
+    console.error('Error al restablecer contraseña:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 
 module.exports = router;

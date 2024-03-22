@@ -5,6 +5,7 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
+const nodemailer = require('nodemailer');
 
 const router = express.Router();
 
@@ -55,7 +56,58 @@ const authenticateJWT = (req, res, next) => {
 router.get('/profile', authenticateJWT, (req, res) => {
   // Devolver los datos del usuario sin la contraseña
   const userData = { _id: req.user._id, name: req.user.name, mail: req.user.mail, whatsapp: req.user.whatsapp, equiposCreados: req.user.equiposCreados, role: req.user.role, complejos: req.user.complejos };
+  
   res.json(userData);
 });
+
+router.post('/reset-password-request', async (req, res) => {
+  const { mail } = req.body;
+  
+
+  try {
+    // Busca al usuario por su correo electrónico
+    const user = await User.findOne({ mail });
+    console.log(user)
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Genera un token único
+    const token = jwt.sign({ userId: user._id }, "una_cadena_secreta_aleatoria", { expiresIn: '1h' });
+
+    // Almacena el token en la base de datos
+    user.resetPasswordToken = token;
+    await user.save();
+
+    // Envía un correo electrónico al usuario con un enlace para restablecer la contraseña
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // Usar otro servicio para producción
+      auth: {
+        user: 'visinodeveloper@gmail.com', // Tu correo
+        pass: 'snnr owsq zmmr dsjh ' // Tu contraseña
+      }
+    });
+    const mailOptions = {
+      from: 'your-email@example.com',
+      to: mail,
+      subject: 'Restablecimiento de Contraseña',
+      text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: http://localhost:5173/reset-password/${token}`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error al enviar correo electrónico:', error);
+        return res.status(500).json({ message: 'Error al enviar correo electrónico' });
+      } else {
+        console.log('Correo electrónico enviado:', info.response);
+        return res.status(200).json({ message: 'Correo electrónico enviado con éxito' });
+      }
+    });
+  } catch (error) {
+    console.error('Error al solicitar restablecimiento de contraseña:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 module.exports = router;

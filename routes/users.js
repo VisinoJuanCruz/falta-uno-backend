@@ -1,10 +1,18 @@
 const express = require('express');
+const passport = require('passport');
+
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
 const sendWelcomeEmail = require('../utils/mailer');
 
 const router = express.Router();
 
+
+// Ruta protegida que requiere autenticación
+router.get('/perfil', passport.authenticate('jwt', { session: false }), (req, res) => {
+  // Si la autenticación es exitosa, el usuario está disponible en req.user
+  res.json({ user: req.user });
+});
 // Obtener todos los usuarios
 router.get('/users', async (req, res) => {
   try {
@@ -59,5 +67,41 @@ router.post('/users', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+router.put('/profile/change-password', passport.authenticate('jwt', { session: false }), async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  
+  // Verificar que se hayan proporcionado tanto la contraseña antigua como la nueva
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ message: 'Debe proporcionar la contraseña antigua y la nueva' });
+  }
+  
+  const userId = req.user._id;
+  
+  
+  try {
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    console.log(isMatch)
+    if (!isMatch) {
+      return res.status(400).json({ message: 'La contraseña anterior es incorrecta' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: 'Contraseña actualizada exitosamente' });
+  } catch (error) {
+    console.error('Error al cambiar la contraseña:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 module.exports = router;

@@ -27,14 +27,13 @@ passport.use(new LocalStrategy({
   }
 }));
 
-
 // Configuración de la estrategia de autenticación JWT
 passport.use(new JwtStrategy({
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
   secretOrKey:  process.env.JWT_SECRET // Clave secreta para firmar tokens JWT
 }, async (payload, done) => {
   try {
-    const user = await User.findById(payload.sub);
+    const user = await User.findById(payload.userId); // Corregimos payload.sub a payload.userId
     if (!user) {
       return done(null, false);
     }

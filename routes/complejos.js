@@ -1,9 +1,60 @@
+// archivo : './backend/routes/complejos.js'
 const express = require('express');
 const router = express.Router();
+const User = require('../models/user')
 const Complejo = require('../models/complejo');
-const User = require('../models/user');
-const Cancha = require('../models/cancha');
 const Reserva = require('../models/reserva');
+const multer = require('multer'); // Importar multer
+const path = require('path'); // Importar el módulo 'path'
+
+// Configurar Multer para manejar la carga de archivos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './images/complejos'); // Ruta donde se guardarán las imágenes
+  },
+  filename: function (req, file, cb) {
+    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
+    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, newFilename);
+
+  }
+});
+
+const upload = multer({ storage });
+
+
+router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
+  try {
+    const formData = req.body;
+    const imagen = req.file.path;
+
+    console.log("DATOS:",formData)
+    console.log("IMAGEN:", imagen)
+
+    if (!imagen) {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
+
+    const nuevoComplejo = new Complejo({
+      nombre: formData.nombre,
+      imagen: imagen, // Guardar la ruta relativa de la imagen
+      direccion: formData.direccion,
+      telefono: formData.telefono,
+      whatsapp: formData.whatsapp,
+      instagram: formData.instagram,
+      userId: formData.userId,
+      canchas: []
+    });
+
+    const savedComplejo = await nuevoComplejo.save();
+    await User.findByIdAndUpdate(formData.userId, { $push: { complejos: savedComplejo._id } });
+    res.status(201).json(savedComplejo);
+  } catch (error) {
+    console.error('Error al agregar complejo:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 
 router.get('/complejos', async (req, res) => {
@@ -14,7 +65,6 @@ router.get('/complejos', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 
 // Obtener un complejo por ID
@@ -34,57 +84,28 @@ router.get('/complejos/:complejoId', async (req, res) => {
   }
 });
 
+router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req, res) => {
+  const { complejoId } = req.params;
+  const formData = req.body;
 
-
-// Crear un nuevo complejo
-router.post('/complejos', async (req, res) => {
   try {
-    const { nombre, imagen, direccion, telefono, whatsapp, instagram, userId } = req.body;
-    
-    const userExists = await User.findById(userId)
-    if (!userExists) {
-      return res.status(400).json({ error: 'El usuario especificado no existe' });
+    let updateFields = {
+      nombre: formData.nombre,
+      direccion: formData.direccion,
+      telefono: formData.telefono,
+      whatsapp: formData.whatsapp,
+      instagram: formData.instagram,
+      userId: formData.userId,
+    };
+
+    // Verificar si se envió una nueva imagen
+    if (req.file) {
+      updateFields.imagen = req.file.path;
     }
 
-
-    const nuevoComplejo = new Complejo({
-      nombre,
-      imagen,
-      direccion,
-      telefono,
-      whatsapp,
-      instagram,
-      userId,
-      canchas: [] // Inicialmente no hay canchas asociadas al complejo
-    });
-
+    // Si hay datos de canchas en el formulario, actualizarlas
     
-    console.log(nuevoComplejo)
-    const savedComplejo = await nuevoComplejo.save();
-
-    await User.findByIdAndUpdate(userId, { $push: { complejos: savedComplejo._id } });
-    console.log('Complejo guardado:', savedComplejo);
-    res.status(201).json(savedComplejo);
-  } catch (error) {
-    console.error('Error al agregar complejo:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Editar un complejo por su ID
-router.put('/complejos/:complejoId', async (req, res) => {
-  const { complejoId } = req.params;
-  const { nombre, imagen, direccion, telefono, whatsapp, instagram } = req.body;
-
-  try {
-    const complejo = await Complejo.findByIdAndUpdate(complejoId, {
-      nombre,
-      imagen ,
-      direccion,
-      telefono,
-      whatsapp,
-      instagram
-    }, { new: true });
+    const complejo = await Complejo.findByIdAndUpdate(complejoId, updateFields, { new: true });
 
     if (!complejo) {
       return res.status(404).json({ error: 'Complejo no encontrado' });
@@ -96,9 +117,6 @@ router.put('/complejos/:complejoId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al editar complejo' });
   }
 });
-
-
-
 
 //BUSQUEDAS:
 // Función para buscar complejos con canchas libres

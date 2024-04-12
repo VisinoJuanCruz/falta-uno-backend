@@ -25,4 +25,6 @@ const sendWelcomeEmail = async (email) => {
   }
 };
 
+
+
 module.exports = sendWelcomeEmail;

@@ -1,9 +1,23 @@
 const express = require('express');
 const Complejo = require('../models/complejo');
 const Cancha = require('../models/cancha');
-
+const multer = require('multer');
+const path = require('path'); // Importar el módulo 'path'
 const router = express.Router();
 
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './images/canchas'); // Ruta donde se guardarán las imágenes
+  },
+  filename: function (req, file, cb) {
+    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
+    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, newFilename);
+
+  }
+});
+
+const upload = multer({ storage });
 // Obtener todas las canchas
 router.get('/canchas', async (req, res) => {
   try {
@@ -32,23 +46,28 @@ router.get('/canchas/:canchaId', async (req, res) => {
 
 
 // Crear una nueva cancha
-router.post('/canchas', async (req, res) => {
+router.post('/canchas', upload.single('canchaImagen'),async (req, res) => {
 
   const complejoExists = await Complejo.findById(req.body.complejoAlQuePertenece);
   if (!complejoExists) {
     return res.status(400).json({ error: 'El complejo especificado no existe' });
   }
 
+  const formData = req.body;
+  const imagen = req.file.path;
+
+  console.log(formData)
+  console.log(imagen)
 
   const cancha = new Cancha({
-    capacidadJugadores: req.body.capacidadJugadores,
-    alAireLibre: req.body.alAireLibre,
-    materialPiso: req.body.materialPiso,
-    precio:req.body.precio,
-    complejoAlQuePertenece: req.body.complejoAlQuePertenece,
+    capacidadJugadores: formData.capacidadJugadores,
+    alAireLibre: formData.alAireLibre,
+    materialPiso: formData.materialPiso,
+    precio:formData.precio,
+    complejoAlQuePertenece: formData.complejoAlQuePertenece,
     reservas:[],
-    imagen: req.body.imagen,
-    nombre: req.body.nombre
+    imagen: imagen,
+    nombre: formData.nombre
   });
 
   try {
@@ -61,12 +80,25 @@ router.post('/canchas', async (req, res) => {
 });
 
 //Editar una cancha por su ID
-router.put('/canchas/:canchaId', async (req, res) => {
+router.put('/canchas/:canchaId', upload.single('canchaImagen'),async (req, res) => {
   const { canchaId } = req.params;
-  const { nombre, capacidadJugadores, alAireLibre, materialPiso, precio, imagen } = req.body;
+  const  formData = req.body;
 
   try {
-    const updatedCancha = await Cancha.findByIdAndUpdate(canchaId, { nombre, capacidadJugadores, alAireLibre, materialPiso, precio, imagen }, { new: true });
+    let updateFields = {
+      nombre: formData.nombre,
+      capacidadJugadores: formData.capacidadJugadores,
+      alAireLibre: formData.alAireLibre,
+      materialPiso: formData.materialPiso,
+      precio: formData.precio,
+    };
+
+    if (req.file) {
+      updateFields.imagen = req.file.path;
+    }
+
+
+    const updatedCancha = await Cancha.findByIdAndUpdate(canchaId,updateFields, { new: true });
     if (!updatedCancha) {
       return res.status(404).json({ message: 'Cancha no encontrada' });
     }

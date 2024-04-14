@@ -3,8 +3,27 @@ const passport = require('passport');
 const Team = require('../models/team');
 const Player = require('../models/player');
 const User = require('../models/user');
+const multer = require('multer'); // Importar multer
+const path = require('path'); // Importar el módulo 'path'
 
 const router = express.Router();
+
+// Configurar Multer para manejar la carga de archivos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './images/teams'); // Ruta donde se guardarán las imágenes
+  },
+  filename: function (req, file, cb) {
+    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
+    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, newFilename);
+
+  }
+});
+
+const upload = multer({ storage });
+
+
 
 // Obtener todos los equipos
 router.get('/teams', async (req, res) => {
@@ -32,18 +51,30 @@ router.get('/teams/:teamId', async (req, res) => {
   }
 });
 
-router.put('/teams/:teamId', async (req, res) => {
+router.put('/teams/:teamId', upload.single('escudo'),async (req, res) => {
   const { teamId } = req.params;
-  const { nombre, escudo, localidad, instagram } = req.body;
+   const formData = req.body;
+
+  
 
   try {
-    const team = await Team.findByIdAndUpdate(teamId, {
-      nombre,
-      escudo,
-      localidad,
-      instagram,
+
+    let updateFields = {
+      nombre: formData.nombre,
+      localidad: formData.localidad,
+      instagram: formData.instagram,
       
-    }, { new: true });
+    };
+
+    // Verificar si se envió una nueva imagen
+    if (req.file) {
+      console.log("SE GUARDA ACA:", req.file)
+      updateFields.escudo = req.file.path;
+    }
+
+    console.log("CAMPOS",updateFields)
+
+    const team = await Team.findByIdAndUpdate(teamId, updateFields, { new: true });
 
     if (!team) {
       return res.status(404).json({ error: 'Equipo no encontrado' });
@@ -59,24 +90,27 @@ router.put('/teams/:teamId', async (req, res) => {
 
 
 // Crear un nuevo equipo
-router.post('/teams', async (req, res) => {
+router.post('/teams',upload.single('escudo'), async (req, res) => {
   try {
-    const { creadoPor, jugadores, escudo, localidad, instagram, nombre } = req.body;
+    const formData = req.body;
+    const escudo = req.file.path;
 
+    console.log("DATOS:",formData)
+    console.log("IMAGEN:", escudo)
     // Si el campo escudo está vacío, asignar la imagen predeterminada
-    const escudoUrl = escudo || 'https://i.pinimg.com/originals/5a/f3/f2/5af3f2e3d949a142fb666dd04136380f.jpg';
+    //const escudoUrl = escudo || 'https://i.pinimg.com/originals/5a/f3/f2/5af3f2e3d949a142fb666dd04136380f.jpg';
 
     const newTeam = new Team({
-      jugadores,
-      nombre,
-      escudo: escudoUrl,
-      localidad,
-      instagram,
-      creadoPor, // Utiliza el userId obtenido del usuario autenticado
+      jugadores:formData.jugadores,
+      nombre:formData.nombre,
+      escudo: escudo,
+      localidad:formData.localidad,
+      instagram:formData.instagram,
+      creadoPor:formData.creadoPor, // Utiliza el userId obtenido del usuario autenticado
     });
 
     const savedTeam = await newTeam.save();
-    await User.findByIdAndUpdate(creadoPor, { $push: { equiposCreados: savedTeam._id } });
+    await User.findByIdAndUpdate(formData.creadoPor, { $push: { equiposCreados: savedTeam._id } });
     res.status(201).json(savedTeam);
   } catch (error) {
     console.error('Error al crear equipo:', error);

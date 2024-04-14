@@ -122,6 +122,8 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
 // Función para buscar complejos con canchas libres
 const buscarComplejosConCanchaLibre = async (fecha) => {
   try {
+    // Convertir la fecha recibida a la zona horaria UTC
+    const fechaUTC = new Date(fecha);
     // Obtener la lista de todos los complejos con sus detalles y las canchas asociadas
     const complejos = await Complejo.find().populate('canchas');
 
@@ -137,13 +139,11 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
         // Buscar reservas existentes para la cancha en la fecha seleccionada
         const reservas = await Reserva.find({
           canchaId: cancha._id,
-          horaInicio: fecha, // Buscar reservas con horaInicio igual a la fecha seleccionada
-          reservado:true
-          
+          horaInicio: fechaUTC, // Usar la fecha en formato UTC
         });
 
-        // Si no hay reservas para la cancha en la fecha seleccionada, establecer la bandera como verdadera
-        if (reservas.length === 0) {
+        // Verificar si hay reservas para esta cancha y si alguna de ellas está reservada
+        if (reservas.length === 0 || reservas.some(reserva => reserva.reservado === false)) {
           tieneCanchaLibre = true;
           break; // No es necesario seguir buscando en las demás canchas del complejo
         }
@@ -164,11 +164,10 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
 };
 
 
-
-
 // Endpoint para buscar complejos con canchas libres en una fecha y hora específicas
 router.post('/complejos/buscar', async (req, res) => {
   const { fecha } = req.body; // Recibe el día, fecha y hora seleccionados por el usuario
+  console.log(fecha)
   
   try {
     // Utilizar la función para buscar complejos con canchas libres

@@ -56,8 +56,6 @@ router.post('/canchas', upload.single('canchaImagen'),async (req, res) => {
   const formData = req.body;
   const imagen = req.file.path;
 
-  console.log(formData)
-  console.log(imagen)
 
   const cancha = new Cancha({
     capacidadJugadores: formData.capacidadJugadores,

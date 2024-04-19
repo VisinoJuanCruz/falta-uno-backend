@@ -2,6 +2,23 @@
 const express = require('express');
 const Player = require('../models/player');
 const Team = require('../models/team');
+const multer = require('multer'); // Importar multer
+const path = require('path'); // Importar el módulo 'path'
+const sharp = require('sharp'); // Importar sharp para redimensionar imágenes
+
+// Configurar Multer para manejar la carga de archivos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './images/players');
+  },
+  filename: function (req, file, cb) {
+    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
+    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, newFilename);
+  }
+});
+
+const upload = multer({ storage });
 
 const router = express.Router();
 
@@ -31,32 +48,50 @@ router.get('/players', async (req, res) => {
   }
 });
 
-// Crear un nuevo jugador
-router.post('/players', async (req, res) => {
+router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {
-    const { name, image, puntajeAtacando, puntajeDefendiendo, puntajeAtajando, creadoPor, equipoId } = req.body;
+    const formData = req.body;
+    const imagenPath = req.file.path;
+
+    console.log("DATOS:", formData);
+    console.log("IMAGEN:", imagenPath);
+
+    if (!imagenPath) {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
+
+    // Redimensionar la imagen a 100x100
+    const resizedImageBuffer = await sharp(imagenPath)
+      .resize({ width: 100, height: 100 })
+      .toBuffer();
+
+    const resizedImagePath = path.join(__dirname, '..', 'images', 'players', `${formData.name}-${Date.now()}-resized.jpg`);
+    await sharp(resizedImageBuffer).toFile(resizedImagePath);
+
+    // Usar la ruta de la imagen redimensionada
+    const resizedImageRelativePath = path.relative(path.join(__dirname, '..'), resizedImagePath);
 
     // Verificar si el equipo existe
-    const teamExists = await Team.findById(equipoId);
+    const teamExists = await Team.findById(formData.equipoId);
     if (!teamExists) {
       return res.status(400).json({ error: 'El equipo especificado no existe' });
     }
 
     // Crear el nuevo jugador con el ID del equipo asociado
     const newPlayer = new Player({
-      name,
-      image,
-      puntajeAtacando,
-      puntajeDefendiendo,
-      puntajeAtajando,
-      creadoPor,
-      equipo: equipoId // Establecer el ID del equipo
+      name: formData.name,
+      image: resizedImageRelativePath,
+      puntajeAtacando: formData.puntajeAtacando,
+      puntajeDefendiendo: formData.puntajeDefendiendo,
+      puntajeAtajando: formData.puntajeAtajando,
+      creadoPor: formData.creadoPor,
+      equipo: formData.equipoId // Establecer el ID del equipo
     });
 
     const savedPlayer = await newPlayer.save();
 
     // Actualizar el equipo para incluir el ID del nuevo jugador en el array 'jugadores'
-    await Team.findByIdAndUpdate(equipoId, { $push: { jugadores: savedPlayer._id } });
+    await Team.findByIdAndUpdate(formData.equipoId, { $push: { jugadores: savedPlayer._id } });
 
     res.status(201).json(savedPlayer);
   } catch (error) {
@@ -64,6 +99,7 @@ router.post('/players', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al agregar jugador' });
   }
 });
+
 
 // Obtener un jugador por su ID
 router.get('/players/:playerId', async (req, res) => {
@@ -84,21 +120,36 @@ router.get('/players/:playerId', async (req, res) => {
 });
 
 // Editar un jugador por su ID
-router.put('/players/:playerId', async (req, res) => {
+// Editar un jugador por su ID
+router.put('/players/:playerId', upload.single('playerImage'), async (req, res) => {
   const { playerId } = req.params;
-  const { name, image, puntajeAtacando, puntajeDefendiendo, puntajeAtajando } = req.body;
+  const formData = req.body;
 
   try {
-    const player = await Player.findByIdAndUpdate(playerId, {
-      name,
-      image,
-      puntajeAtacando,
-      puntajeDefendiendo,
-      puntajeAtajando
-    }, { new: true });
+    let updateFields = {
+      name: formData.name,
+      puntajeAtacando: formData.puntajeAtacando,
+      puntajeDefendiendo: formData.puntajeDefendiendo,
+      puntajeAtajando: formData.puntajeAtajando,
+    };
+
+    if (req.file) {
+      // Si hay un archivo adjunto, redimensiona la imagen
+      const resizedImageBuffer = await sharp(req.file.path)
+        .resize({ width: 100, height: 100 })
+        .toBuffer();
+
+      const resizedImagePath = path.join(__dirname, '..', 'images', 'players', `${formData.name}-${Date.now()}-resized.jpg`);
+      await sharp(resizedImageBuffer).toFile(resizedImagePath);
+
+      // Usar la ruta de la imagen redimensionada
+      updateFields.image = path.relative(path.join(__dirname, '..'), resizedImagePath);
+    }
+
+    const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
 
     if (!player) {
-      return res.status(404).json({ error: 'Jugador no encontrado' });
+      return res.status(404).json({ error: 'Player no encontrado' });
     }
 
     res.json(player);
@@ -107,8 +158,6 @@ router.put('/players/:playerId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al editar jugador' });
   }
 });
-
-
 // Obtener todos los jugadores de un equipo por su teamId
 router.get('/players/by-team/:teamId', async (req, res) => {
   const { teamId } = req.params;

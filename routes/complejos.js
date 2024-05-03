@@ -43,6 +43,8 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
       whatsapp: formData.whatsapp,
       instagram: formData.instagram,
       userId: formData.userId,
+      servicios: formData.servicios,
+      descripcion: formData.descripcion,
       canchas: []
     });
 
@@ -96,6 +98,8 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
       whatsapp: formData.whatsapp,
       instagram: formData.instagram,
       userId: formData.userId,
+      servicios: formData.servicios,
+      descripcion: formData.descripcion,
     };
 
     // Verificar si se envió una nueva imagen

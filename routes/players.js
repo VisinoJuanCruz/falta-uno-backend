@@ -5,6 +5,8 @@ const Team = require('../models/team');
 const multer = require('multer'); // Importar multer
 const path = require('path'); // Importar el módulo 'path'
 const sharp = require('sharp'); // Importar sharp para redimensionar imágenes
+const fs = require('fs');
+
 
 // Configurar Multer para manejar la carga de archivos
 const storage = multer.diskStorage({
@@ -18,7 +20,43 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+
+
+const upload = multer({
+  storage: storage,
+  fileFilter: function (req, file, cb) {
+    // Verificar el tipo de archivo, por ejemplo, solo permitir imágenes
+    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+      return cb(new Error('Solo se permiten imágenes'));
+    }
+    cb(null, true);
+  }
+});
+
+
+// Middleware para redimensionar la imagen antes de almacenarla
+const resizeImage = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+
+  try {
+    // Redimensionar la imagen a 100x100
+    const resizedImageBuffer = await sharp(req.file.path)
+      .resize({ width: 100, height: 100 })
+      .toBuffer();
+
+    // Sobrescribir el archivo original con la imagen redimensionada
+    fs.writeFileSync(req.file.path, resizedImageBuffer);
+
+    next();
+  } catch (error) {
+    console.error('Error al redimensionar la imagen:', error);
+    return res.status(500).json({ error: 'Error interno del servidor al redimensionar la imagen' });
+  }
+};
+
+
 
 const router = express.Router();
 
@@ -48,28 +86,18 @@ router.get('/players', async (req, res) => {
   }
 });
 
-router.post('/players', upload.single('playerImage'), async (req, res) => {
+
+router.post('/players', upload.single('playerImage'), resizeImage, async (req, res) => {
   try {
     const formData = req.body;
-    const imagenPath = req.file.path;
 
-    console.log("DATOS:", formData);
-    console.log("IMAGEN:", imagenPath);
-
-    if (!imagenPath) {
+    // Verificar si se proporcionó una imagen
+    if (!req.file) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    // Redimensionar la imagen a 100x100
-    const resizedImageBuffer = await sharp(imagenPath)
-      .resize({ width: 100, height: 100 })
-      .toBuffer();
-
-    const resizedImagePath = path.join(__dirname, '..', 'images', 'players', `${formData.name}-${Date.now()}-resized.jpg`);
-    await sharp(resizedImageBuffer).toFile(resizedImagePath);
-
     // Usar la ruta de la imagen redimensionada
-    const resizedImageRelativePath = path.relative(path.join(__dirname, '..'), resizedImagePath);
+    const resizedImageRelativePath = path.relative(path.join(__dirname, '..'), req.file.path);
 
     // Verificar si el equipo existe
     const teamExists = await Team.findById(formData.equipoId);
@@ -101,6 +129,7 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
 });
 
 
+
 // Obtener un jugador por su ID
 router.get('/players/:playerId', async (req, res) => {
   const { playerId } = req.params;
@@ -119,9 +148,8 @@ router.get('/players/:playerId', async (req, res) => {
   }
 });
 
-// Editar un jugador por su ID
-// Editar un jugador por su ID
-router.put('/players/:playerId', upload.single('playerImage'), async (req, res) => {
+
+router.put('/players/:playerId', upload.single('playerImage'), resizeImage, async (req, res) => {
   const { playerId } = req.params;
   const formData = req.body;
 
@@ -134,16 +162,38 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     };
 
     if (req.file) {
-      // Si hay un archivo adjunto, redimensiona la imagen
-      const resizedImageBuffer = await sharp(req.file.path)
-        .resize({ width: 100, height: 100 })
-        .toBuffer();
+      // Obtener la ubicación del archivo
+      const filePath = req.file.path;
+      
+      // Obtener el jugador actual para obtener la imagen anterior y eliminarla
+     // Obtener el jugador actual para obtener la imagen anterior y eliminarla
+     const currentPlayer = await Player.findById(playerId);
+if (currentPlayer && currentPlayer.image) {
+  // Construir la ruta de la imagen a eliminar
+  const imagePathToDelete = path.join(__dirname, '..', currentPlayer.image);
+  console.log("RUTA PARA ELIMINAR", imagePathToDelete);
 
+  // Verificar si el archivo existe antes de intentar eliminarlo
+  if (fs.existsSync(imagePathToDelete)) {
+    // Eliminar la imagen anterior del servidor
+    fs.unlinkSync(imagePathToDelete);
+    console.log("Imagen anterior eliminada correctamente");
+  } else {
+    console.log("La imagen anterior no existe en la ruta especificada");
+  }
+}
+
+      // Redimensionar la imagen y guardar la nueva imagen
       const resizedImagePath = path.join(__dirname, '..', 'images', 'players', `${formData.name}-${Date.now()}-resized.jpg`);
-      await sharp(resizedImageBuffer).toFile(resizedImagePath);
+      await sharp(filePath)
+        .resize({ width: 100, height: 100 })
+        .toFile(resizedImagePath);
 
       // Usar la ruta de la imagen redimensionada
       updateFields.image = path.relative(path.join(__dirname, '..'), resizedImagePath);
+
+      // Eliminar el archivo original
+      fs.unlinkSync(filePath);
     }
 
     const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
@@ -158,6 +208,9 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     res.status(500).json({ error: 'Error interno del servidor al editar jugador' });
   }
 });
+
+// Resto del código para la creación de un nuevo jugador
+
 // Obtener todos los jugadores de un equipo por su teamId
 router.get('/players/by-team/:teamId', async (req, res) => {
   const { teamId } = req.params;

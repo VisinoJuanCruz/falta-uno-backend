@@ -241,7 +241,20 @@ router.delete('/players/:playerId', async (req, res) => {
     if (!player) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
-
+    
+  if (player && player.image) {
+    // Construir la ruta de la imagen a eliminar
+    const imagePathToDelete = path.join(__dirname, '..', player.image);
+    console.log("RUTA PARA ELIMINAR", imagePathToDelete);
+  // Verificar si el archivo existe antes de intentar eliminarlo
+  if (fs.existsSync(imagePathToDelete)) {
+    // Eliminar la imagen anterior del servidor
+    fs.unlinkSync(imagePathToDelete);
+    console.log("Imagen anterior eliminada correctamente");
+  } else {
+    console.log("La imagen anterior no existe en la ruta especificada");
+  }
+}
     // Eliminar al jugador de la base de datos
     await Player.findByIdAndDelete(playerId);
 
@@ -254,6 +267,7 @@ router.delete('/players/:playerId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al eliminar jugador' });
   }
 });
+
 
 
 module.exports = router;

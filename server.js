@@ -1,4 +1,5 @@
-// Archivo: './backend/server.js'
+require('dotenv').config({ path: '.env.development' }); // Cargar las variables de entorno de .env.development
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,25 +10,27 @@ const playerRoutes = require('./routes/players');
 const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
-const complejosRoutes = require('./routes/complejos')
-const reservasRoutes = require('./routes/reservas')
-
+const complejosRoutes = require('./routes/complejos');
+const reservasRoutes = require('./routes/reservas');
 
 require('./config/passport-config');
+
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+console.log(process.env.DB_NAME)
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/images', express.static('images'))
+app.use('/images', express.static('images'));
 
-
-mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongodb.net/develop');
+// Conexión a la base de datos MongoDB utilizando las variables de entorno
+mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_HOST}/${process.env.DB_NAME}`);
 
 // Configuración de express-session
 app.use(session({
-  secret: 'teamamos',
+  secret: process.env.JWT_SECRET,
   resave: false,
   saveUninitialized: false,
 }));
@@ -35,7 +38,6 @@ app.use(session({
 // Inicialización y configuración de Passport
 app.use(passport.initialize());
 app.use(passport.session());
- // Utilizar multer para manejar las solicitudes de multipart/form-data
 
 // Importar y usar tus rutas de autenticación
 app.use('/api', authRoutes);
@@ -45,10 +47,11 @@ app.use('/api', teamRoutes);
 app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
+
 app.use(function (err, req, res, next) {
-  console.log('This is the invalid field ->', err.field)
-  next(err)
-})
+  console.log('This is the invalid field ->', err.field);
+  next(err);
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

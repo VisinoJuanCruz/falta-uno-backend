@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static('images'))
 
 
-mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongodb.net/');
+mongoose.connect('mongodb+srv://faltauno:nMECcDGnaXJZhi9f@faltauno.izyj3j0.mongodb.net/develop');
 
 // Configuración de express-session
 app.use(session({

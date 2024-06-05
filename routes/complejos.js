@@ -1,35 +1,36 @@
-// archivo : './backend/routes/complejos.js'
+// archivo: ./backend/routes/complejos.js
 const express = require('express');
 const router = express.Router();
-const User = require('../models/user')
+const User = require('../models/user');
 const Complejo = require('../models/complejo');
 const Reserva = require('../models/reserva');
-const multer = require('multer'); // Importar multer
-const path = require('path'); // Importar el módulo 'path'
+const multer = require('multer');
+const path = require('path');
+const mongoose = require('mongoose');
 
 // Configurar Multer para manejar la carga de archivos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './images/complejos'); // Ruta donde se guardarán las imágenes
+    cb(null, './images/complejos');
   },
   filename: function (req, file, cb) {
     const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
     const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
     cb(null, newFilename);
-
   }
 });
 
 const upload = multer({ storage });
 
+// Verificar si el valor es un ObjectId válido
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id);
+}
 
 router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   try {
     const formData = req.body;
     const imagen = req.file.path;
-
-    console.log("DATOS:",formData)
-    console.log("IMAGEN:", imagen)
 
     if (!imagen) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
@@ -37,7 +38,7 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
 
     const nuevoComplejo = new Complejo({
       nombre: formData.nombre,
-      imagen: imagen, // Guardar la ruta relativa de la imagen
+      imagen: imagen,
       direccion: formData.direccion,
       telefono: formData.telefono,
       whatsapp: formData.whatsapp,
@@ -57,8 +58,6 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   }
 });
 
-
-
 router.get('/complejos', async (req, res) => {
   try {
     const complejos = await Complejo.find().populate('canchas');
@@ -68,17 +67,19 @@ router.get('/complejos', async (req, res) => {
   }
 });
 
-
 // Obtener un complejo por ID
 router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
 
   try {
+    if (!isValidObjectId(complejoId)) {
+      return res.status(400).json({ message: 'ID de complejo inválido' });
+    }
+
     const complejo = await Complejo.findById(complejoId).populate('canchas');
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
-    console.log("DEVUELVE ESTO dsadsa:",complejo)
     res.json(complejo);
   } catch (error) {
     console.error('Error al obtener complejo por ID:', error);
@@ -91,6 +92,10 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
   const formData = req.body;
 
   try {
+    if (!isValidObjectId(complejoId)) {
+      return res.status(400).json({ message: 'ID de complejo inválido' });
+    }
+
     let updateFields = {
       nombre: formData.nombre,
       direccion: formData.direccion,
@@ -102,13 +107,10 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
       descripcion: formData.descripcion,
     };
 
-    // Verificar si se envió una nueva imagen
     if (req.file) {
       updateFields.imagen = req.file.path;
     }
 
-    // Si hay datos de canchas en el formulario, actualizarlas
-    
     const complejo = await Complejo.findByIdAndUpdate(complejoId, updateFields, { new: true });
 
     if (!complejo) {
@@ -122,61 +124,67 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
   }
 });
 
-//BUSQUEDAS:
-// Función para buscar complejos con canchas libres
-const buscarComplejosConCanchaLibre = async (fecha) => {
+router.get('/complejos/:complejoId/stats', async (req, res) => {
+  const { complejoId } = req.params;
+
   try {
-    // Convertir la fecha recibida a la zona horaria UTC
-    const fechaUTC = new Date(fecha);
-    // Obtener la lista de todos los complejos con sus detalles y las canchas asociadas
-    const complejos = await Complejo.find().populate('canchas');
-
-    // Array para almacenar los complejos con canchas libres
-    const complejosConCanchaLibre = [];
-
-    // Iterar sobre cada complejo
-    for (const complejo of complejos) {
-      let tieneCanchaLibre = false;
-
-      // Iterar sobre las canchas del complejo
-      for (const cancha of complejo.canchas) {
-        // Buscar reservas existentes para la cancha en la fecha seleccionada
-        const reservas = await Reserva.find({
-          canchaId: cancha._id,
-          horaInicio: fechaUTC, // Usar la fecha en formato UTC
-        });
-
-        // Verificar si hay reservas para esta cancha y si alguna de ellas está reservada
-        if (reservas.length === 0 || reservas.some(reserva => reserva.reservado === false)) {
-          tieneCanchaLibre = true;
-          break; // No es necesario seguir buscando en las demás canchas del complejo
-        }
-      }
-
-      // Si al menos una cancha está libre en el complejo, agregar el complejo a la lista
-      if (tieneCanchaLibre) {
-        complejosConCanchaLibre.push(complejo);
-      }
+    if (!isValidObjectId(complejoId)) {
+      return res.status(400).json({ message: 'ID de complejo inválido' });
     }
 
-    console.log(complejosConCanchaLibre);
-    return complejosConCanchaLibre;
+    const complejo = await Complejo.findById(complejoId);
+    if (!complejo) {
+      return res.status(404).json({ message: 'Complejo no encontrado' });
+    }
+
+    // Obtener las reservas de todas las canchas del complejo donde reservado sea true, ordenadas por horaInicio
+    const reservas = await Reserva.find({ canchaId: { $in: complejo.canchas }, reservado: true }).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
+    
+    res.json(reservas);
   } catch (error) {
-    console.error('Error al buscar complejos con canchas libres:', error);
-    throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
+    console.error('Error al obtener estadísticas del complejo:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-};
+});
+
+// Endpoint para obtener reservas filtradas por fechas
+router.get('/complejos/:complejoId/reservas', async (req, res) => {
+  const { complejoId } = req.params;
+  const { startDate, endDate } = req.query;
+
+  try {
+    if (!isValidObjectId(complejoId)) {
+      return res.status(400).json({ message: 'ID de complejo inválido' });
+    }
+
+    const complejo = await Complejo.findById(complejoId);
+    if (!complejo) {
+      return res.status(404).json({ message: 'Complejo no encontrado' });
+    }
+
+    let query = { canchaId: { $in: complejo.canchas }, reservado: true };
+    if (startDate && endDate) {
+      query.horaInicio = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    }
+
+    // Obtener las reservas que cumplen con los criterios de filtrado, ordenadas por horaInicio
+    const reservas = await Reserva.find(query).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
+
+    res.json(reservas);
+  } catch (error) {
+    console.error('Error al obtener reservas del complejo:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 
-// Endpoint para buscar complejos con canchas libres en una fecha y hora específicas
+
+
 router.post('/complejos/buscar', async (req, res) => {
-  const { fecha } = req.body; // Recibe el día, fecha y hora seleccionados por el usuario
-  console.log(fecha)
+  const { fecha } = req.body;
   
   try {
-    // Utilizar la función para buscar complejos con canchas libres
     const complejosConCanchaLibre = await buscarComplejosConCanchaLibre(fecha);
-    console.log("DEVUELVE ESTO",complejosConCanchaLibre)
     res.json(complejosConCanchaLibre);
   } catch (error) {
     console.error('Error al buscar complejos con canchas libres:', error);
@@ -184,5 +192,38 @@ router.post('/complejos/buscar', async (req, res) => {
   }
 });
 
-
 module.exports = router;
+
+// Función para buscar complejos con canchas libres
+const buscarComplejosConCanchaLibre = async (fecha) => {
+  try {
+    const fechaUTC = new Date(fecha);
+    const complejos = await Complejo.find().populate('canchas');
+    const complejosConCanchaLibre = [];
+
+    for (const complejo of complejos) {
+      let tieneCanchaLibre = false;
+
+      for (const cancha of complejo.canchas) {
+        const reservas = await Reserva.find({
+          canchaId: cancha._id,
+          horaInicio: fechaUTC,
+        });
+
+        if (reservas.length === 0 || reservas.some(reserva => !reserva.reservado)) {
+          tieneCanchaLibre = true;
+          break;
+        }
+      }
+
+      if (tieneCanchaLibre) {
+        complejosConCanchaLibre.push(complejo);
+      }
+    }
+
+    return complejosConCanchaLibre;
+  } catch (error) {
+    console.error('Error al buscar complejos con canchas libres:', error);
+    throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
+  }
+};

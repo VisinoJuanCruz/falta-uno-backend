@@ -9,17 +9,11 @@ router.get('/reservas', async (req, res) => {
     const { fecha, canchaId, page = 1, limit = 50 } = req.query;
     const query = {};
 
-    // Agregar parámetros de filtrado si están presentes
     if (fecha) {
-      // Convertir la fecha proporcionada en un objeto Date
       const fechaFiltro = new Date(fecha);
-      
-      // Definir el rango de fechas para la consulta
       const fechaInicio = new Date(fechaFiltro.getFullYear(), fechaFiltro.getMonth(), fechaFiltro.getDate());
       const fechaFin = new Date(fechaInicio);
       fechaFin.setDate(fechaInicio.getDate() + 1);
-
-      // Agregar la condición de filtrado para que esté entre la fecha de inicio y fin del día
       query.horaInicio = { $gte: fechaInicio, $lt: fechaFin };
     }
     if (canchaId) {
@@ -31,15 +25,18 @@ router.get('/reservas', async (req, res) => {
       limit: parseInt(limit),
     };
 
-    // Consultar la base de datos con los parámetros proporcionados
     const reservas = await Reserva.paginate(query, options);
-    // Enviar los resultados paginados al cliente
+    await Reserva.populate(reservas.docs, { path: 'canchaId', select: 'nombre' });
+
     res.json(reservas);
   } catch (error) {
     console.error('Error al obtener las reservas:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+
+
 
 // Crear una nueva reserva o cambiar el estado de una reserva existente
 router.post('/reservas', async (req, res) => {
@@ -51,20 +48,20 @@ if (isNaN(horaInicio.getTime())) {
 
 console.log(canchaId,horaInicio,precio)
     const horaFin = new Date(horaInicio.getTime() + 3600000)
-    console.log("LA HORA DE FIN QUEDA:", horaFin)
-  try {
-    // Verificar si ya hay una reserva para este horario y esta cancha
-    
-    const existingReserva = await Reserva.findOne({
-      canchaId,
-      horaInicio
-    });
-    
-    
+    try {
+      // Verificar si ya hay una reserva para este horario y esta cancha
+      
+      const existingReserva = await Reserva.findOne({
+        canchaId,
+        horaInicio
+      });
+      
+      
     if (existingReserva) {
       
       // Si la reserva existe, cambiar su estado de reservado
       existingReserva.reservado = !existingReserva.reservado;
+      existingReserva.precio = precio;
       const updatedReserva = await existingReserva.save();
       return res.status(200).json(updatedReserva);
     }
@@ -78,7 +75,6 @@ console.log(canchaId,horaInicio,precio)
       precio,
       reservado: true // Marcar como reservado al crear una nueva reserva
     });
-    console.log(reserva)
     
     const savedReserva = await reserva.save();
     await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
@@ -94,26 +90,21 @@ router.put('/reservas/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Encontrar la reserva por ID
-    const reserva = await Reserva.findById(id);
+    const reserva = await Reserva.findById(id).populate('canchaId', 'nombre');
     if (!reserva) {
       return res.status(404).json({ message: 'Reserva no encontrada' });
     }
 
-    // Actualizar el estado de 'reservado' a su valor opuesto
     reserva.reservado = !reserva.reservado;
     const updatedReserva = await reserva.save();
 
-    // Devolver la reserva actualizada como respuesta
     res.json(updatedReserva);
-    console.log("UPDATE RESERVA:", updatedReserva)
+    console.log("UPDATE RESERVA:", updatedReserva);
   } catch (err) {
-    // Manejar errores
     console.error(err.message);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
-
 
 // Eliminar una reserva
 router.delete('/reservas/:id', async (req, res) => {

@@ -164,7 +164,9 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
 
     let query = { canchaId: { $in: complejo.canchas }, reservado: true };
     if (startDate && endDate) {
-      query.horaInicio = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      const endDateWithTime = new Date(endDate);
+      endDateWithTime.setUTCHours(23, 59, 59, 999); // Ajustar el endDate para incluir todo el día
+      query.horaInicio = { $gte: new Date(startDate), $lte: endDateWithTime };
     }
 
     // Obtener las reservas que cumplen con los criterios de filtrado, ordenadas por horaInicio
@@ -180,6 +182,7 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
 
 
 
+
 router.post('/complejos/buscar', async (req, res) => {
   const { fecha } = req.body;
   
@@ -191,8 +194,6 @@ router.post('/complejos/buscar', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
-module.exports = router;
 
 // Función para buscar complejos con canchas libres
 const buscarComplejosConCanchaLibre = async (fecha) => {
@@ -227,3 +228,8 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
     throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
   }
 };
+
+
+
+module.exports = router;
+

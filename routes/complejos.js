@@ -147,10 +147,10 @@ router.get('/complejos/:complejoId/stats', async (req, res) => {
   }
 });
 
-// Endpoint para obtener reservas filtradas por fechas
+// Endpoint para obtener reservas filtradas por fechas y canchas
 router.get('/complejos/:complejoId/reservas', async (req, res) => {
   const { complejoId } = req.params;
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, canchaIds } = req.query;
 
   try {
     if (!isValidObjectId(complejoId)) {
@@ -163,10 +163,15 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
     }
 
     let query = { canchaId: { $in: complejo.canchas }, reservado: true };
+
     if (startDate && endDate) {
       const endDateWithTime = new Date(endDate);
       endDateWithTime.setUTCHours(23, 59, 59, 999); // Ajustar el endDate para incluir todo el día
       query.horaInicio = { $gte: new Date(startDate), $lte: endDateWithTime };
+    }
+
+    if (canchaIds) {
+      query.canchaId.$in = canchaIds.split(',');
     }
 
     // Obtener las reservas que cumplen con los criterios de filtrado, ordenadas por horaInicio
@@ -178,7 +183,6 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 
 

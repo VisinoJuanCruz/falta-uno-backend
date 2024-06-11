@@ -20,20 +20,18 @@ passport.use(new LocalStrategy({
     if (!isMatch) {
       return done(null, false, { message: 'Contraseña incorrecta' });
     }
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
-    return done(null, user, { token });
+    return done(null, user);
   } catch (error) {
     return done(error);
   }
 }));
 
-// Configuración de la estrategia de autenticación JWT
 passport.use(new JwtStrategy({
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey:  process.env.JWT_SECRET // Clave secreta para firmar tokens JWT
+  secretOrKey: process.env.JWT_SECRET
 }, async (payload, done) => {
   try {
-    const user = await User.findById(payload.userId); // Corregimos payload.sub a payload.userId
+    const user = await User.findById(payload.userId);
     if (!user) {
       return done(null, false);
     }
@@ -43,12 +41,10 @@ passport.use(new JwtStrategy({
   }
 }));
 
-// Serialización de usuarios
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-// Deserialización de usuarios
 passport.deserializeUser((id, done) => {
   User.findById(id, (err, user) => {
     done(err, user);

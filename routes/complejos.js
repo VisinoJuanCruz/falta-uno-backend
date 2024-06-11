@@ -1,7 +1,8 @@
 // archivo: ./backend/routes/complejos.js
 const express = require('express');
 const router = express.Router();
-const User = require('../models/user');
+const authenticateUser = require('../middlewares/authenticate');
+const authorizeUserForComplejo = require('../middlewares/authorize');
 const Complejo = require('../models/complejo');
 const Reserva = require('../models/reserva');
 const multer = require('multer');
@@ -58,6 +59,7 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   }
 });
 
+
 router.get('/complejos', async (req, res) => {
   try {
     const complejos = await Complejo.find().populate('canchas');
@@ -67,7 +69,6 @@ router.get('/complejos', async (req, res) => {
   }
 });
 
-// Obtener un complejo por ID
 router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
 
@@ -124,7 +125,8 @@ router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req
   }
 });
 
-router.get('/complejos/:complejoId/stats', async (req, res) => {
+// Aplicar los middlewares de autenticación y autorización
+router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
 
   try {
@@ -137,7 +139,6 @@ router.get('/complejos/:complejoId/stats', async (req, res) => {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
 
-    // Obtener las reservas de todas las canchas del complejo donde reservado sea true, ordenadas por horaInicio
     const reservas = await Reserva.find({ canchaId: { $in: complejo.canchas }, reservado: true }).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
     
     res.json(reservas);
@@ -147,8 +148,7 @@ router.get('/complejos/:complejoId/stats', async (req, res) => {
   }
 });
 
-// Endpoint para obtener reservas filtradas por fechas y canchas
-router.get('/complejos/:complejoId/reservas', async (req, res) => {
+router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
   const { startDate, endDate, canchaIds } = req.query;
 
@@ -166,7 +166,7 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
 
     if (startDate && endDate) {
       const endDateWithTime = new Date(endDate);
-      endDateWithTime.setUTCHours(23, 59, 59, 999); // Ajustar el endDate para incluir todo el día
+      endDateWithTime.setUTCHours(23, 59, 59, 999);
       query.horaInicio = { $gte: new Date(startDate), $lte: endDateWithTime };
     }
 
@@ -174,7 +174,6 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
       query.canchaId.$in = canchaIds.split(',');
     }
 
-    // Obtener las reservas que cumplen con los criterios de filtrado, ordenadas por horaInicio
     const reservas = await Reserva.find(query).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
 
     res.json(reservas);
@@ -183,8 +182,6 @@ router.get('/complejos/:complejoId/reservas', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
-
 
 
 router.post('/complejos/buscar', async (req, res) => {

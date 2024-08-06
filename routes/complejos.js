@@ -8,6 +8,7 @@ const Reserva = require('../models/reserva');
 const multer = require('multer');
 const path = require('path');
 const mongoose = require('mongoose');
+const User = require('../models/user');
 
 // Configurar Multer para manejar la carga de archivos
 const storage = multer.diskStorage({
@@ -23,6 +24,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+
+
 // Verificar si el valor es un ObjectId válido
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -37,6 +40,9 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
+    // Convertir el campo servicios de JSON string a array si es necesario
+    const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
+
     const nuevoComplejo = new Complejo({
       nombre: formData.nombre,
       imagen: imagen,
@@ -45,7 +51,7 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
       whatsapp: formData.whatsapp,
       instagram: formData.instagram,
       userId: formData.userId,
-      servicios: formData.servicios,
+      servicios: servicios,
       descripcion: formData.descripcion,
       canchas: []
     });
@@ -54,10 +60,11 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
     await User.findByIdAndUpdate(formData.userId, { $push: { complejos: savedComplejo._id } });
     res.status(201).json(savedComplejo);
   } catch (error) {
-    console.error('Error al agregar complejo:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error(error);
+    res.status(500).json({ error: 'Error al guardar el complejo' });
   }
 });
+
 
 
 router.get('/complejos', async (req, res) => {
@@ -81,6 +88,8 @@ router.get('/complejos/:complejoId', async (req, res) => {
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
+    
+    console.log("Complejo a enviar:", complejo); // Agrega esto para depurar
     res.json(complejo);
   } catch (error) {
     console.error('Error al obtener complejo por ID:', error);
@@ -88,42 +97,48 @@ router.get('/complejos/:complejoId', async (req, res) => {
   }
 });
 
-router.put('/complejos/:complejoId', upload.single('complejoImagen'), async (req, res) => {
-  const { complejoId } = req.params;
-  const formData = req.body;
-
+router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) => {
   try {
-    if (!isValidObjectId(complejoId)) {
-      return res.status(400).json({ message: 'ID de complejo inválido' });
-    }
+    const { id } = req.params;
+    const formData = req.body;
+    const imagen = req.file ? req.file.path : null;
 
-    let updateFields = {
-      nombre: formData.nombre,
-      direccion: formData.direccion,
-      telefono: formData.telefono,
-      whatsapp: formData.whatsapp,
-      instagram: formData.instagram,
-      userId: formData.userId,
-      servicios: formData.servicios,
-      descripcion: formData.descripcion,
-    };
-
-    if (req.file) {
-      updateFields.imagen = req.file.path;
-    }
-
-    const complejo = await Complejo.findByIdAndUpdate(complejoId, updateFields, { new: true });
-
-    if (!complejo) {
+    // Obtener el complejo actual desde la base de datos
+    const complejoActual = await Complejo.findById(id);
+    if (!complejoActual) {
       return res.status(404).json({ error: 'Complejo no encontrado' });
     }
 
-    res.json(complejo);
+    // Asegúrate de que si hay una imagen nueva, se actualice
+    const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
+
+    // Combina los datos existentes con los nuevos datos
+    const updateData = {
+      nombre: formData.nombre || complejoActual.nombre,
+      direccion: formData.direccion || complejoActual.direccion,
+      telefono: formData.telefono || complejoActual.telefono,
+      whatsapp: formData.whatsapp || complejoActual.whatsapp,
+      instagram: formData.instagram || complejoActual.instagram,
+      descripcion: formData.descripcion || complejoActual.descripcion,
+      servicios: servicios.length > 0 ? servicios : complejoActual.servicios, // Actualiza solo si hay nuevos servicios
+    };
+
+    // Si se subió una nueva imagen, añade la propiedad
+    if (imagen) {
+      updateData.imagen = imagen;
+    }
+
+    const updatedComplejo = await Complejo.findByIdAndUpdate(id, updateData, { new: true });
+    res.status(200).json(updatedComplejo);
   } catch (error) {
-    console.error('Error al editar complejo:', error);
-    res.status(500).json({ error: 'Error interno del servidor al editar complejo' });
+    console.error('Error al actualizar el complejo:', error);
+    res.status(500).json({ error: 'Error al actualizar el complejo' });
   }
 });
+
+
+
+
 
 // Aplicar los middlewares de autenticación y autorización
 router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForComplejo, async (req, res) => {

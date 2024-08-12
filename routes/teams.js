@@ -5,6 +5,14 @@ const Player = require('../models/player');
 const User = require('../models/user');
 const multer = require('multer'); // Importar multer
 const path = require('path'); // Importar el módulo 'path'
+const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: 'TU_CLOUD_NAME',
+  api_key: 'TU_API_KEY',
+  api_secret: 'TU_API_SECRET'
+});
 
 const router = express.Router();
 
@@ -17,13 +25,10 @@ const storage = multer.diskStorage({
     const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
     const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
     cb(null, newFilename);
-
   }
 });
 
 const upload = multer({ storage });
-
-
 
 // Obtener todos los equipos
 router.get('/teams', async (req, res) => {
@@ -51,28 +56,66 @@ router.get('/teams/:teamId', async (req, res) => {
   }
 });
 
-router.put('/teams/:teamId', upload.single('escudo'),async (req, res) => {
-  const { teamId } = req.params;
-   const formData = req.body;
+// Crear un nuevo equipo
+router.post('/teams', upload.single('escudo'), async (req, res) => {
+  try {
+    const formData = req.body;
 
-  
+    // Verificar si se proporcionó una imagen
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
+
+    // Subir la imagen a Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path);
+
+    const newTeam = new Team({
+      jugadores: formData.jugadores,
+      nombre: formData.nombre,
+      escudo: result.public_id, // Guardar el public_id en lugar de la ruta
+      localidad: formData.localidad,
+      instagram: formData.instagram,
+      creadoPor: formData.creadoPor, // Utiliza el userId obtenido del usuario autenticado
+    });
+
+    const savedTeam = await newTeam.save();
+    await User.findByIdAndUpdate(formData.creadoPor, { $push: { equiposCreados: savedTeam._id } });
+    res.status(201).json(savedTeam);
+  } catch (error) {
+    console.error('Error al crear equipo:', error);
+    res.status(500).json({ error: 'Error interno del servidor al crear equipo' });
+  }
+});
+
+// Actualizar un equipo
+router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
+  const { teamId } = req.params;
+  const formData = req.body;
 
   try {
+    const currentTeam = await Team.findById(teamId);
+
+    if (!currentTeam) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
 
     let updateFields = {
       nombre: formData.nombre,
       localidad: formData.localidad,
       instagram: formData.instagram,
-      
     };
 
     // Verificar si se envió una nueva imagen
     if (req.file) {
-      console.log("SE GUARDA ACA:", req.file)
-      updateFields.escudo = req.file.path;
-    }
+      // Eliminar la imagen anterior de Cloudinary
+      await cloudinary.uploader.destroy(currentTeam.escudo);
 
-    console.log("CAMPOS",updateFields)
+      // Subir la nueva imagen a Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path);
+
+      // Usar el public_id de la nueva imagen
+      updateFields.escudo = result.public_id;
+    }
 
     const team = await Team.findByIdAndUpdate(teamId, updateFields, { new: true });
 
@@ -86,38 +129,6 @@ router.put('/teams/:teamId', upload.single('escudo'),async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al editar equipo' });
   }
 });
-
-
-
-// Crear un nuevo equipo
-router.post('/teams',upload.single('escudo'), async (req, res) => {
-  try {
-    const formData = req.body;
-    const escudo = req.file.path;
-
-    console.log("DATOS:",formData)
-    console.log("IMAGEN:", escudo)
-    // Si el campo escudo está vacío, asignar la imagen predeterminada
-    //const escudoUrl = escudo || 'https://i.pinimg.com/originals/5a/f3/f2/5af3f2e3d949a142fb666dd04136380f.jpg';
-
-    const newTeam = new Team({
-      jugadores:formData.jugadores,
-      nombre:formData.nombre,
-      escudo: escudo,
-      localidad:formData.localidad,
-      instagram:formData.instagram,
-      creadoPor:formData.creadoPor, // Utiliza el userId obtenido del usuario autenticado
-    });
-
-    const savedTeam = await newTeam.save();
-    await User.findByIdAndUpdate(formData.creadoPor, { $push: { equiposCreados: savedTeam._id } });
-    res.status(201).json(savedTeam);
-  } catch (error) {
-    console.error('Error al crear equipo:', error);
-    res.status(500).json({ error: 'Error interno del servidor al crear equipo' });
-  }
-});
-
 
 // Agregar un jugador a un equipo
 router.post('/teams/:id/add-player', async (req, res) => {
@@ -165,17 +176,23 @@ router.delete('/teams/:teamId', async (req, res) => {
   const { teamId } = req.params;
 
   try {
-    // Busca y elimina el equipo por su ID
-    const deletedTeam = await Team.findByIdAndDelete(teamId);
-    if (!deletedTeam) {
+    // Busca el equipo por su ID
+    const team = await Team.findById(teamId);
+    if (!team) {
       return res.status(404).json({ error: 'Equipo no encontrado' });
     }
 
-    // Elimina todos los jugadores asociados al equipo eliminado
+    // Eliminar la imagen de Cloudinary
+    await cloudinary.uploader.destroy(team.escudo);
+
+    // Eliminar el equipo de la base de datos
+    await Team.findByIdAndDelete(teamId);
+
+    // Eliminar todos los jugadores asociados al equipo eliminado
     await Player.deleteMany({ equipo: teamId });
 
-    // Quita el equipo de la lista de equipos creados del usuario que lo creó
-    await User.updateOne({ _id: deletedTeam.creadoPor }, { $pull: { equiposCreados: teamId } });
+    // Quitar el equipo de la lista de equipos creados del usuario que lo creó
+    await User.updateOne({ _id: team.creadoPor }, { $pull: { equiposCreados: teamId } });
 
     res.status(200).json({ message: 'Equipo eliminado exitosamente' });
   } catch (error) {
@@ -183,6 +200,5 @@ router.delete('/teams/:teamId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al eliminar equipo' });
   }
 });
-
 
 module.exports = router;

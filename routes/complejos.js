@@ -1,4 +1,3 @@
-// archivo: ./backend/routes/complejos.js
 const express = require('express');
 const router = express.Router();
 const authenticateUser = require('../middlewares/authenticate');
@@ -9,11 +8,19 @@ const multer = require('multer');
 const path = require('path');
 const mongoose = require('mongoose');
 const User = require('../models/user');
+const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: 'TU_CLOUD_NAME',
+  api_key: 'TU_API_KEY',
+  api_secret: 'TU_API_SECRET'
+});
 
 // Configurar Multer para manejar la carga de archivos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './images/complejos');
+    cb(null, './images/complejos'); // Ruta donde se guardarán las imágenes temporalmente
   },
   filename: function (req, file, cb) {
     const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
@@ -23,8 +30,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
-
 
 // Verificar si el valor es un ObjectId válido
 function isValidObjectId(id) {
@@ -40,12 +45,15 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
+    // Subir la imagen a Cloudinary
+    const result = await cloudinary.uploader.upload(imagen);
+
     // Convertir el campo servicios de JSON string a array si es necesario
     const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
 
     const nuevoComplejo = new Complejo({
       nombre: formData.nombre,
-      imagen: imagen,
+      imagen: result.public_id, // Guardar el public_id de Cloudinary
       direccion: formData.direccion,
       telefono: formData.telefono,
       whatsapp: formData.whatsapp,
@@ -64,8 +72,6 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
     res.status(500).json({ error: 'Error al guardar el complejo' });
   }
 });
-
-
 
 router.get('/complejos', async (req, res) => {
   try {
@@ -125,7 +131,12 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
 
     // Si se subió una nueva imagen, añade la propiedad
     if (imagen) {
-      updateData.imagen = imagen;
+      // Eliminar la imagen anterior de Cloudinary
+      await cloudinary.uploader.destroy(complejoActual.imagen);
+      
+      // Subir la nueva imagen a Cloudinary
+      const result = await cloudinary.uploader.upload(imagen);
+      updateData.imagen = result.public_id; // Guardar el public_id de la nueva imagen
     }
 
     const updatedComplejo = await Complejo.findByIdAndUpdate(id, updateData, { new: true });
@@ -135,10 +146,6 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
     res.status(500).json({ error: 'Error al actualizar el complejo' });
   }
 });
-
-
-
-
 
 // Aplicar los middlewares de autenticación y autorización
 router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForComplejo, async (req, res) => {
@@ -198,7 +205,6 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
   }
 });
 
-
 router.post('/complejos/buscar', async (req, res) => {
   const { fecha } = req.body;
   
@@ -245,7 +251,4 @@ const buscarComplejosConCanchaLibre = async (fecha) => {
   }
 };
 
-
-
 module.exports = router;
-

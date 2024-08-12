@@ -6,57 +6,42 @@ const multer = require('multer'); // Importar multer
 const path = require('path'); // Importar el módulo 'path'
 const sharp = require('sharp'); // Importar sharp para redimensionar imágenes
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+const { CloudinaryStorage } = require('multer-storage-cloudinary'); // Importar CloudinaryStorage
 
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-// Configurar Multer para manejar la carga de archivos
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, './images/players');
+// Configurar Multer para usar Cloudinary como almacenamiento
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'players', // Carpeta en Cloudinary donde se guardarán las imágenes
+    allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
+    transformation: [{ width: 100, height: 100, crop: 'limit' }], // Redimensionar las imágenes
   },
-  filename: function (req, file, cb) {
-    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
-    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, newFilename);
-  }
 });
 
+const upload = multer({ storage: storage });
 
-
-const upload = multer({
-  storage: storage,
-  fileFilter: function (req, file, cb) {
-    // Verificar el tipo de archivo, por ejemplo, solo permitir imágenes
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-      return cb(new Error('Solo se permiten imágenes'));
-    }
-    cb(null, true);
-  }
-});
-
-
-// Middleware para redimensionar la imagen antes de almacenarla
+// Middleware para redimensionar la imagen antes de almacenarla en Cloudinary (opcional)
 const resizeImage = async (req, res, next) => {
   if (!req.file) {
     return next();
   }
 
   try {
-    // Redimensionar la imagen a 100x100
-    const resizedImageBuffer = await sharp(req.file.path)
-      .resize({ width: 100, height: 100 })
-      .toBuffer();
-
-    // Sobrescribir el archivo original con la imagen redimensionada
-    fs.writeFileSync(req.file.path, resizedImageBuffer);
-
+    // Aquí ya no necesitas redimensionar manualmente la imagen, ya que Cloudinary lo hace automáticamente
     next();
   } catch (error) {
     console.error('Error al redimensionar la imagen:', error);
     return res.status(500).json({ error: 'Error interno del servidor al redimensionar la imagen' });
   }
 };
-
-
 
 const router = express.Router();
 
@@ -86,8 +71,7 @@ router.get('/players', async (req, res) => {
   }
 });
 
-
-router.post('/players', upload.single('playerImage'), resizeImage, async (req, res) => {
+router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {
     const formData = req.body;
 
@@ -96,8 +80,8 @@ router.post('/players', upload.single('playerImage'), resizeImage, async (req, r
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    // Usar la ruta de la imagen redimensionada
-    const resizedImageRelativePath = path.relative(path.join(__dirname, '..'), req.file.path);
+    // Subir la imagen a Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path);
 
     // Verificar si el equipo existe
     const teamExists = await Team.findById(formData.equipoId);
@@ -105,10 +89,10 @@ router.post('/players', upload.single('playerImage'), resizeImage, async (req, r
       return res.status(400).json({ error: 'El equipo especificado no existe' });
     }
 
-    // Crear el nuevo jugador con el ID del equipo asociado
+    // Crear el nuevo jugador con el ID del equipo asociado y el public_id de la imagen
     const newPlayer = new Player({
       name: formData.name,
-      image: resizedImageRelativePath,
+      image: result.public_id, // Guardar el public_id en lugar de la ruta
       puntajeAtacando: formData.puntajeAtacando,
       puntajeDefendiendo: formData.puntajeDefendiendo,
       puntajeAtajando: formData.puntajeAtajando,
@@ -129,7 +113,6 @@ router.post('/players', upload.single('playerImage'), resizeImage, async (req, r
 });
 
 
-
 // Obtener un jugador por su ID
 router.get('/players/:playerId', async (req, res) => {
   const { playerId } = req.params;
@@ -148,12 +131,17 @@ router.get('/players/:playerId', async (req, res) => {
   }
 });
 
-
-router.put('/players/:playerId', upload.single('playerImage'), resizeImage, async (req, res) => {
+router.put('/players/:playerId', upload.single('playerImage'), async (req, res) => {
   const { playerId } = req.params;
   const formData = req.body;
 
   try {
+    const currentPlayer = await Player.findById(playerId);
+
+    if (!currentPlayer) {
+      return res.status(404).json({ error: 'Player no encontrado' });
+    }
+
     let updateFields = {
       name: formData.name,
       puntajeAtacando: formData.puntajeAtacando,
@@ -162,38 +150,14 @@ router.put('/players/:playerId', upload.single('playerImage'), resizeImage, asyn
     };
 
     if (req.file) {
-      // Obtener la ubicación del archivo
-      const filePath = req.file.path;
-      
-      // Obtener el jugador actual para obtener la imagen anterior y eliminarla
-     // Obtener el jugador actual para obtener la imagen anterior y eliminarla
-     const currentPlayer = await Player.findById(playerId);
-if (currentPlayer && currentPlayer.image) {
-  // Construir la ruta de la imagen a eliminar
-  const imagePathToDelete = path.join(__dirname, '..', currentPlayer.image);
-  console.log("RUTA PARA ELIMINAR", imagePathToDelete);
+      // Eliminar la imagen anterior de Cloudinary
+      await cloudinary.uploader.destroy(currentPlayer.image);
 
-  // Verificar si el archivo existe antes de intentar eliminarlo
-  if (fs.existsSync(imagePathToDelete)) {
-    // Eliminar la imagen anterior del servidor
-    fs.unlinkSync(imagePathToDelete);
-    console.log("Imagen anterior eliminada correctamente");
-  } else {
-    console.log("La imagen anterior no existe en la ruta especificada");
-  }
-}
+      // Subir la nueva imagen a Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path);
 
-      // Redimensionar la imagen y guardar la nueva imagen
-      const resizedImagePath = path.join(__dirname, '..', 'images', 'players', `${formData.name}-${Date.now()}-resized.jpg`);
-      await sharp(filePath)
-        .resize({ width: 100, height: 100 })
-        .toFile(resizedImagePath);
-
-      // Usar la ruta de la imagen redimensionada
-      updateFields.image = path.relative(path.join(__dirname, '..'), resizedImagePath);
-
-      // Eliminar el archivo original
-      fs.unlinkSync(filePath);
+      // Usar el public_id de la nueva imagen
+      updateFields.image = result.public_id;
     }
 
     const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
@@ -209,7 +173,6 @@ if (currentPlayer && currentPlayer.image) {
   }
 });
 
-// Resto del código para la creación de un nuevo jugador
 
 // Obtener todos los jugadores de un equipo por su teamId
 router.get('/players/by-team/:teamId', async (req, res) => {
@@ -241,20 +204,10 @@ router.delete('/players/:playerId', async (req, res) => {
     if (!player) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
-    
-  if (player && player.image) {
-    // Construir la ruta de la imagen a eliminar
-    const imagePathToDelete = path.join(__dirname, '..', player.image);
-    console.log("RUTA PARA ELIMINAR", imagePathToDelete);
-  // Verificar si el archivo existe antes de intentar eliminarlo
-  if (fs.existsSync(imagePathToDelete)) {
-    // Eliminar la imagen anterior del servidor
-    fs.unlinkSync(imagePathToDelete);
-    console.log("Imagen anterior eliminada correctamente");
-  } else {
-    console.log("La imagen anterior no existe en la ruta especificada");
-  }
-}
+
+    // Eliminar la imagen de Cloudinary
+    await cloudinary.uploader.destroy(player.image);
+
     // Eliminar al jugador de la base de datos
     await Player.findByIdAndDelete(playerId);
 
@@ -267,7 +220,5 @@ router.delete('/players/:playerId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al eliminar jugador' });
   }
 });
-
-
 
 module.exports = router;

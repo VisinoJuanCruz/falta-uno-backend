@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env.development' });
+require('dotenv')
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -39,7 +39,8 @@ app.use('/images', express.static('images'));
 
 
 
-mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_HOST}/main`);
+
+mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`);
 
 // Configuración de express-session
 app.use(session({

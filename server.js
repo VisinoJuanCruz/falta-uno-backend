@@ -19,13 +19,16 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 
-app.use(cors());
+app.use(cors({
+  origin: 'https://aqua-pony-582263.hostingersite.com',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static('images'));
 
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://rosybrown-lyrebird-865308.hostingersite.com');
+  res.header('Access-Control-Allow-Origin', 'https://aqua-pony-582263.hostingersite.com');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');

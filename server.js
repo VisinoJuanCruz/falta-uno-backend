@@ -18,14 +18,10 @@ require('./config/passport-config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-
 app.use(cors({
   origin: 'https://aqua-pony-582263.hostingersite.com',
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/images', express.static('images'));
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'https://aqua-pony-582263.hostingersite.com');
@@ -34,6 +30,12 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   next();
 });
+
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/images', express.static('images'));
+
 
 
 

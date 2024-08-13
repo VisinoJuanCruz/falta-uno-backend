@@ -12,7 +12,6 @@ const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
 const complejosRoutes = require('./routes/complejos');
 const reservasRoutes = require('./routes/reservas');
-const MongoStore = require('connect-mongo')(session);
 
 require('./config/passport-config');
 
@@ -43,15 +42,11 @@ app.use('/images', express.static('images'));
 
 mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`);
 
-// Configuración de express-session con MongoDB Store
+// Configuración de express-session
 app.use(session({
   secret: process.env.JWT_SECRET,
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ // Usa MongoStore.create() para crear la instancia
-    mongoUrl: `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`, // URL de conexión
-    collectionName: 'sessions', // Nombre de la colección para las sesiones
-  }),
 }));
 
 app.use(passport.initialize());

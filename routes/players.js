@@ -22,7 +22,7 @@ const storage = new CloudinaryStorage({
   params: {
     folder: 'players', // Carpeta en Cloudinary donde se guardarán las imágenes
     allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
-    transformation: [{ width: 100, height: 100, crop: 'limit' }], // Redimensionar las imágenes
+    transformation: [{ width: 200, height: 200, crop: 'limit' }], // Redimensionar las imágenes
   },
 });
 

@@ -3,32 +3,29 @@ const passport = require('passport');
 const Team = require('../models/team');
 const Player = require('../models/player');
 const User = require('../models/user');
-const multer = require('multer'); // Importar multer
-const path = require('path'); // Importar el módulo 'path'
-const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+const multer = require('multer'); 
+const { CloudinaryStorage } = require('multer-storage-cloudinary'); 
+const cloudinary = require('cloudinary').v2; 
 
 // Configurar Cloudinary
 cloudinary.config({
-  cloud_name: 'TU_CLOUD_NAME',
-  api_key: 'TU_API_KEY',
-  api_secret: 'TU_API_SECRET'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const router = express.Router();
-
-// Configurar Multer para manejar la carga de archivos
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, './images/teams'); // Ruta donde se guardarán las imágenes
+// Configurar Multer para usar Cloudinary como almacenamiento
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'teams', // Carpeta en Cloudinary donde se guardarán las imágenes
+    allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
   },
-  filename: function (req, file, cb) {
-    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
-    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, newFilename);
-  }
 });
 
 const upload = multer({ storage });
+
+const router = express.Router();
 
 // Obtener todos los equipos
 router.get('/teams', async (req, res) => {
@@ -40,7 +37,7 @@ router.get('/teams', async (req, res) => {
   }
 });
 
-// Obtener un team por ID
+// Obtener un equipo por ID
 router.get('/teams/:teamId', async (req, res) => {
   const { teamId } = req.params;
 
@@ -75,7 +72,7 @@ router.post('/teams', upload.single('escudo'), async (req, res) => {
       escudo: result.public_id, // Guardar el public_id en lugar de la ruta
       localidad: formData.localidad,
       instagram: formData.instagram,
-      creadoPor: formData.creadoPor, // Utiliza el userId obtenido del usuario autenticado
+      creadoPor: formData.creadoPor,
     });
 
     const savedTeam = await newTeam.save();
@@ -134,7 +131,7 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
 router.post('/teams/:id/add-player', async (req, res) => {
   try {
     const teamId = req.params.id;
-    const playerId = req.body.playerId; // El ID del jugador que se va a agregar al equipo
+    const playerId = req.body.playerId; 
 
     // Verifica si el equipo existe
     const team = await Team.findById(teamId);

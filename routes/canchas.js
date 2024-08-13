@@ -2,15 +2,14 @@ const express = require('express');
 const Complejo = require('../models/complejo');
 const Cancha = require('../models/cancha');
 const multer = require('multer');
-const path = require('path'); // Importar el módulo 'path'
 const router = express.Router();
-const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+const cloudinary = require('cloudinary').v2;
 
-// Configurar Cloudinary
+// Configurar Cloudinary usando las variables de entorno
 cloudinary.config({
-  cloud_name: 'TU_CLOUD_NAME',
-  api_key: 'TU_API_KEY',
-  api_secret: 'TU_API_SECRET'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 // Configurar Multer para manejar la carga de archivos
@@ -56,12 +55,14 @@ router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
     let imagenUrl;
     if (req.file) {
       // Subir la imagen a Cloudinary
-      const result = await cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
-        if (error) {
-          return res.status(500).json({ error: 'Error al subir la imagen a Cloudinary' });
-        }
-        imagenUrl = result.secure_url; // Obtener la URL segura de la imagen
-      }).end(req.file.buffer);
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
+        uploadStream.end(req.file.buffer);
+      });
+      imagenUrl = result.secure_url; // Obtener la URL segura de la imagen
     }
 
     const cancha = new Cancha({
@@ -100,12 +101,14 @@ router.put('/canchas/:canchaId', upload.single('canchaImagen'), async (req, res)
 
     if (req.file) {
       // Subir la nueva imagen a Cloudinary
-      const result = await cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
-        if (error) {
-          return res.status(500).json({ error: 'Error al subir la imagen a Cloudinary' });
-        }
-        updateFields.imagen = result.secure_url; // Guardar la URL segura de la nueva imagen
-      }).end(req.file.buffer);
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
+        uploadStream.end(req.file.buffer);
+      });
+      updateFields.imagen = result.secure_url; // Guardar la URL segura de la nueva imagen
     }
 
     const updatedCancha = await Cancha.findByIdAndUpdate(canchaId, updateFields, { new: true });
@@ -116,6 +119,42 @@ router.put('/canchas/:canchaId', upload.single('canchaImagen'), async (req, res)
   } catch (err) {
     console.error('Error al actualizar la cancha:', err);
     res.status(400).json({ message: err.message });
+  }
+});
+
+// Eliminar una cancha específica
+router.delete('/canchas/:canchaId', async (req, res) => {
+  const { canchaId } = req.params;
+
+  try {
+    // Buscar la cancha antes de eliminarla para obtener la imagen
+    const cancha = await Cancha.findById(canchaId);
+    if (!cancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+
+    // Eliminar la imagen de Cloudinary
+    if (cancha.imagen) {
+      const publicId = cancha.imagen.split('/').pop().split('.')[0]; // Obtener el public_id de la imagen
+      await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+    }
+
+    // Eliminar la cancha por su ID
+    const deletedCancha = await Cancha.findByIdAndDelete(canchaId);
+    if (!deletedCancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+
+    // Eliminar la referencia de la cancha en el complejo
+    await Complejo.updateOne(
+      { canchas: canchaId },
+      { $pull: { canchas: canchaId } }
+    );
+
+    res.json({ message: 'Cancha eliminada exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar la cancha:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -147,30 +186,6 @@ router.post('/canchas/:canchaId/reservar', async (req, res) => {
     res.json({ message: 'Reserva realizada correctamente' });
   } catch (error) {
     console.error('Error al realizar la reserva:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// Eliminar una cancha específica
-router.delete('/canchas/:canchaId', async (req, res) => {
-  const { canchaId } = req.params;
-
-  try {
-    // Eliminar la cancha por su ID
-    const deletedCancha = await Cancha.findByIdAndDelete(canchaId);
-    if (!deletedCancha) {
-      return res.status(404).json({ message: 'Cancha no encontrada' });
-    }
-
-    // Eliminar la referencia de la cancha en el complejo
-    await Complejo.updateOne(
-      { canchas: canchaId },
-      { $pull: { canchas: canchaId } }
-    );
-
-    res.json({ message: 'Cancha eliminada exitosamente' });
-  } catch (error) {
-    console.error('Error al eliminar la cancha:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

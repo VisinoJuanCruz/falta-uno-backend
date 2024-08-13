@@ -1,4 +1,4 @@
-require('dotenv')
+require('dotenv').config()
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -12,6 +12,7 @@ const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
 const complejosRoutes = require('./routes/complejos');
 const reservasRoutes = require('./routes/reservas');
+const MongoStore = require('connect-mongo')(session);
 
 require('./config/passport-config');
 
@@ -47,6 +48,7 @@ app.use(session({
   secret: process.env.JWT_SECRET,
   resave: false,
   saveUninitialized: false,
+  store: new MongoStore({ mongooseConnection: mongoose.connection }),
 }));
 
 app.use(passport.initialize());

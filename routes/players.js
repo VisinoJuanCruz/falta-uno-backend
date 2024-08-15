@@ -71,6 +71,9 @@ router.get('/players', async (req, res) => {
   }
 });
 
+// routes/players.js
+
+// Ruta para agregar un jugador
 router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {
     const formData = req.body;
@@ -79,9 +82,6 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
-
-    // Subir la imagen a Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path);
 
     // Verificar si el equipo existe
     const teamExists = await Team.findById(formData.equipoId);
@@ -92,7 +92,7 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
     // Crear el nuevo jugador con el ID del equipo asociado y el public_id de la imagen
     const newPlayer = new Player({
       name: formData.name,
-      image: result.public_id, // Guardar el public_id en lugar de la ruta
+      image: req.file.path, // Utiliza el path de la imagen ya subida por multer
       puntajeAtacando: formData.puntajeAtacando,
       puntajeDefendiendo: formData.puntajeDefendiendo,
       puntajeAtajando: formData.puntajeAtajando,
@@ -111,6 +111,7 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al agregar jugador' });
   }
 });
+
 
 
 // Obtener un jugador por su ID

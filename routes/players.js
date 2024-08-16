@@ -137,12 +137,14 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
   const formData = req.body;
 
   try {
+    // Buscar el jugador actual en la base de datos
     const currentPlayer = await Player.findById(playerId);
 
     if (!currentPlayer) {
       return res.status(404).json({ error: 'Player no encontrado' });
     }
 
+    // Actualizar campos básicos del jugador
     let updateFields = {
       name: formData.name,
       puntajeAtacando: formData.puntajeAtacando,
@@ -150,23 +152,28 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       puntajeAtajando: formData.puntajeAtajando,
     };
 
+    // Verificar si se subió una nueva imagen
     if (req.file) {
-      // Eliminar la imagen anterior de Cloudinary
-      await cloudinary.uploader.destroy(currentPlayer.image);
+      // Eliminar la imagen anterior de Cloudinary si existe
+      if (currentPlayer.image) {
+        await cloudinary.uploader.destroy(currentPlayer.image);
+      }
 
       // Subir la nueva imagen a Cloudinary
       const result = await cloudinary.uploader.upload(req.file.path);
 
-      // Usar el public_id de la nueva imagen
+      // Actualizar el campo de imagen con el public_id de la nueva imagen
       updateFields.image = result.public_id;
     }
 
+    // Actualizar el jugador en la base de datos con los nuevos campos
     const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
 
     if (!player) {
       return res.status(404).json({ error: 'Player no encontrado' });
     }
 
+    // Devolver el jugador actualizado
     res.json(player);
   } catch (error) {
     console.error('Error al editar jugador:', error);

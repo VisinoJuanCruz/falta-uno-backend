@@ -153,11 +153,8 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       // Eliminar la imagen anterior de Cloudinary
       await cloudinary.uploader.destroy(currentPlayer.image);
 
-      // Subir la nueva imagen a Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path);
-
-      // Usar el public_id de la nueva imagen
-      updateFields.image = result.public_id;
+      // Usar el public_id de la imagen subida por multer
+      updateFields.image = req.file.filename;  // 'filename' contiene el public_id de Cloudinary
     }
 
     const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
@@ -172,6 +169,7 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     res.status(500).json({ error: 'Error interno del servidor al editar jugador' });
   }
 });
+
 
 
 

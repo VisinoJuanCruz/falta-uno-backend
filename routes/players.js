@@ -130,7 +130,7 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     };
 
     // Verificar si se subió una nueva imagen
-    if (req.file) {
+    if (formData.imageChanged === 'true' && req.file) {
       // Eliminar la imagen anterior de Cloudinary si existe
       if (currentPlayer.image) {
         await cloudinary.uploader.destroy(currentPlayer.image);

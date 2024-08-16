@@ -136,8 +136,11 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
         await cloudinary.uploader.destroy(currentPlayer.image);
       }
 
-      // Actualizar el campo de imagen con el path de la nueva imagen
-      updateFields.image = req.file.path;
+      // Subir la nueva imagen a Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path);
+
+      // Actualizar el campo de imagen con el public_id de la nueva imagen
+      updateFields.image = result.public_id;
     }
 
     // Actualizar el jugador en la base de datos con los nuevos campos
@@ -154,7 +157,6 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     res.status(500).json({ error: 'Error interno del servidor al editar jugador' });
   }
 });
-
 
 
 // Obtener todos los jugadores de un equipo por su teamId

@@ -18,7 +18,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'teams',
+    folder: 'teams', // Carpeta en Cloudinary donde se guardarán las imágenes
     allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
   },
 });
@@ -53,12 +53,16 @@ router.post('/teams', upload.single('escudo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
 
-    const result = await cloudinary.uploader.upload(req.file.path);
+    // Usar el public_id de la imagen subida en la carpeta 'teams'
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'teams',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
+    });
 
     const newTeam = new Team({
       jugadores: req.body.jugadores,
       nombre: req.body.nombre,
-      escudo: result.public_id,
+      escudo: result.public_id, // Guardar el public_id en lugar de la ruta
       localidad: req.body.localidad,
       instagram: req.body.instagram,
       creadoPor: req.body.creadoPor,
@@ -85,8 +89,15 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
     };
 
     if (req.file) {
+      // Eliminar la imagen anterior de Cloudinary
       await cloudinary.uploader.destroy(currentTeam.escudo);
-      const result = await cloudinary.uploader.upload(req.file.path);
+
+      // Subir la nueva imagen a Cloudinary en la carpeta 'teams'
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'teams',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
+      });
+
       updateFields.escudo = result.public_id;
     }
 
@@ -134,9 +145,16 @@ router.delete('/teams/:teamId', async (req, res) => {
     const team = await Team.findById(req.params.teamId);
     if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
 
+    // Eliminar la imagen de Cloudinary
     await cloudinary.uploader.destroy(team.escudo);
+
+    // Eliminar el equipo de la base de datos
     await Team.findByIdAndDelete(req.params.teamId);
+
+    // Eliminar todos los jugadores asociados al equipo eliminado
     await Player.deleteMany({ equipo: req.params.teamId });
+
+    // Quitar el equipo de la lista de equipos creados del usuario que lo creó
     await User.updateOne({ _id: team.creadoPor }, { $pull: { equiposCreados: req.params.teamId } });
 
     res.status(200).json({ message: 'Equipo eliminado exitosamente' });

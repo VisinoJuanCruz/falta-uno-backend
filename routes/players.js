@@ -1,14 +1,32 @@
-// archivo: ./backend/routes/players.js
+// routes/players.js
 const express = require('express');
 const Player = require('../models/player');
 const Team = require('../models/team');
-
+const multer = require('multer'); // Importar multer
 const path = require('path'); // Importar el módulo 'path'
 const sharp = require('sharp'); // Importar sharp para redimensionar imágenes
 const fs = require('fs');
-const upload = require('../config/cloudinary');
+const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+const { CloudinaryStorage } = require('multer-storage-cloudinary'); // Importar CloudinaryStorage
 
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
+// Configurar Multer para usar Cloudinary como almacenamiento
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'players', // Carpeta en Cloudinary donde se guardarán las imágenes
+    allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
+    transformation: [{ width: 200, height: 200, crop: 'limit' }], // Redimensionar las imágenes
+  },
+});
+
+const upload = multer({ storage: storage });
 
 // Middleware para redimensionar la imagen antes de almacenarla en Cloudinary (opcional)
 const resizeImage = async (req, res, next) => {
@@ -53,33 +71,38 @@ router.get('/players', async (req, res) => {
   }
 });
 
-// routes/players.js
-
-// Ruta para agregar un jugador
 router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {
     const formData = req.body;
 
+    // Verificar si se proporcionó una imagen
     if (!req.file) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
+    // Subir la imagen a Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path);
+
+    // Verificar si el equipo existe
     const teamExists = await Team.findById(formData.equipoId);
     if (!teamExists) {
       return res.status(400).json({ error: 'El equipo especificado no existe' });
     }
 
+    // Crear el nuevo jugador con el ID del equipo asociado y el public_id de la imagen
     const newPlayer = new Player({
       name: formData.name,
-      image: req.file.path, // Utiliza el path de la imagen ya subida por multer
+      image: result.public_id, // Guardar el public_id en lugar de la ruta
       puntajeAtacando: formData.puntajeAtacando,
       puntajeDefendiendo: formData.puntajeDefendiendo,
       puntajeAtajando: formData.puntajeAtajando,
       creadoPor: formData.creadoPor,
-      equipo: formData.equipoId
+      equipo: formData.equipoId // Establecer el ID del equipo
     });
 
     const savedPlayer = await newPlayer.save();
+
+    // Actualizar el equipo para incluir el ID del nuevo jugador en el array 'jugadores'
     await Team.findByIdAndUpdate(formData.equipoId, { $push: { jugadores: savedPlayer._id } });
 
     res.status(201).json(savedPlayer);
@@ -88,7 +111,6 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al agregar jugador' });
   }
 });
-
 
 
 // Obtener un jugador por su ID
@@ -114,14 +136,12 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
   const formData = req.body;
 
   try {
-    // Buscar el jugador actual en la base de datos
     const currentPlayer = await Player.findById(playerId);
 
     if (!currentPlayer) {
       return res.status(404).json({ error: 'Player no encontrado' });
     }
 
-    // Actualizar campos básicos del jugador
     let updateFields = {
       name: formData.name,
       puntajeAtacando: formData.puntajeAtacando,
@@ -129,28 +149,23 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       puntajeAtajando: formData.puntajeAtajando,
     };
 
-    // Verificar si se subió una nueva imagen
-    if (formData.imageChanged === 'true' && req.file) {
-      // Eliminar la imagen anterior de Cloudinary si existe
-      if (currentPlayer.image) {
-        await cloudinary.uploader.destroy(currentPlayer.image);
-      }
+    if (req.file) {
+      // Eliminar la imagen anterior de Cloudinary
+      await cloudinary.uploader.destroy(currentPlayer.image);
 
       // Subir la nueva imagen a Cloudinary
       const result = await cloudinary.uploader.upload(req.file.path);
 
-      // Actualizar el campo de imagen con el public_id de la nueva imagen
+      // Usar el public_id de la nueva imagen
       updateFields.image = result.public_id;
     }
 
-    // Actualizar el jugador en la base de datos con los nuevos campos
     const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
 
     if (!player) {
       return res.status(404).json({ error: 'Player no encontrado' });
     }
 
-    // Devolver el jugador actualizado
     res.json(player);
   } catch (error) {
     console.error('Error al editar jugador:', error);

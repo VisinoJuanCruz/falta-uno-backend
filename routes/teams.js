@@ -3,9 +3,9 @@ const express = require('express');
 const Team = require('../models/team');
 const Player = require('../models/player');
 const User = require('../models/user');
-const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 
 // Configurar Cloudinary
 cloudinary.config({
@@ -53,16 +53,10 @@ router.post('/teams', upload.single('escudo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
 
-    // Usar el public_id de la imagen subida en la carpeta 'teams'
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: 'teams',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
-    });
-
     const newTeam = new Team({
       jugadores: req.body.jugadores,
       nombre: req.body.nombre,
-      escudo: result.public_id, // Guardar el public_id en lugar de la ruta
+      escudo: req.file.filename, // Usar el public_id de Cloudinary que se encuentra en req.file.filename
       localidad: req.body.localidad,
       instagram: req.body.instagram,
       creadoPor: req.body.creadoPor,
@@ -92,13 +86,8 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
       // Eliminar la imagen anterior de Cloudinary
       await cloudinary.uploader.destroy(currentTeam.escudo);
 
-      // Subir la nueva imagen a Cloudinary en la carpeta 'teams'
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'teams',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
-      });
-
-      updateFields.escudo = result.public_id;
+      // Usar el public_id de la nueva imagen
+      updateFields.escudo = req.file.filename;
     }
 
     const updatedTeam = await Team.findByIdAndUpdate(req.params.teamId, updateFields, { new: true });

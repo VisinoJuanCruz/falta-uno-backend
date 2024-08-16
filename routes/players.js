@@ -174,6 +174,7 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
 });
 
 
+
 // Obtener todos los jugadores de un equipo por su teamId
 router.get('/players/by-team/:teamId', async (req, res) => {
   const { teamId } = req.params;

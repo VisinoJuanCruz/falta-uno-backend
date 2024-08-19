@@ -40,7 +40,7 @@ function isValidObjectId(id) {
 router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   try {
     const formData = req.body;
-    const imagen = req.file.path;
+    const imagen = req.file ? req.file.path : null;
 
     if (!imagen) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
@@ -97,7 +97,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
-    
+
     console.log("Complejo a enviar:", complejo); // Agrega esto para depurar
     res.json(complejo);
   } catch (error) {
@@ -136,8 +136,10 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
     // Si se subió una nueva imagen, añade la propiedad
     if (imagen) {
       // Eliminar la imagen anterior de Cloudinary
-      await cloudinary.uploader.destroy(complejoActual.imagen);
-      
+      if (complejoActual.imagen) {
+        await cloudinary.uploader.destroy(complejoActual.imagen);
+      }
+
       // Subir la nueva imagen a Cloudinary
       const result = await cloudinary.uploader.upload(imagen);
       updateData.imagen = result.public_id; // Guardar el public_id de la nueva imagen
@@ -225,12 +227,12 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
       query.horaInicio = { $gte: new Date(startDate), $lte: endDateWithTime };
     }
 
-    if (canchaIds) {
-      query.canchaId.$in = canchaIds.split(',');
+    if (canchaIds && Array.isArray(canchaIds)) {
+      query.canchaId = { $in: canchaIds };
     }
 
     const reservas = await Reserva.find(query).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
-
+    
     res.json(reservas);
   } catch (error) {
     console.error('Error al obtener reservas del complejo:', error);
@@ -238,51 +240,45 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
   }
 });
 
-// Buscar complejos con canchas libres en una fecha
+// Buscar complejos con canchas disponibles
 router.post('/complejos/buscar', async (req, res) => {
-  const { fecha } = req.body;
-  
+  const { startDate, endDate } = req.body;
+
   try {
-    const complejosConCanchaLibre = await buscarComplejosConCanchaLibre(fecha);
-    res.json(complejosConCanchaLibre);
+    const complejos = await buscarComplejosConCanchaLibre(startDate, endDate);
+    res.json(complejos);
   } catch (error) {
-    console.error('Error al buscar complejos con canchas libres:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error al buscar complejos:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-// Función para buscar complejos con canchas libres
-const buscarComplejosConCanchaLibre = async (fecha) => {
+async function buscarComplejosConCanchaLibre(startDate, endDate) {
+  // Función para buscar complejos con canchas libres entre las fechas especificadas
   try {
-    const fechaUTC = new Date(fecha);
-    const complejos = await Complejo.find().populate('canchas');
-    const complejosConCanchaLibre = [];
+    const complejos = await Complejo.find();
+    const complejosConDisponibilidad = [];
 
-    for (const complejo of complejos) {
-      let tieneCanchaLibre = false;
+    for (let complejo of complejos) {
+      const canchasLibres = await Reserva.find({
+        canchaId: { $in: complejo.canchas },
+        horaInicio: { $gte: startDate, $lte: endDate },
+        reservado: false
+      }).populate('canchaId');
 
-      for (const cancha of complejo.canchas) {
-        const reservas = await Reserva.find({
-          canchaId: cancha._id,
-          horaInicio: fechaUTC,
+      if (canchasLibres.length > 0) {
+        complejosConDisponibilidad.push({
+          complejo,
+          canchasLibres
         });
-
-        if (reservas.length === 0 || reservas.some(reserva => !reserva.reservado)) {
-          tieneCanchaLibre = true;
-          break;
-        }
-      }
-
-      if (tieneCanchaLibre) {
-        complejosConCanchaLibre.push(complejo);
       }
     }
 
-    return complejosConCanchaLibre;
+    return complejosConDisponibilidad;
   } catch (error) {
-    console.error('Error al buscar complejos con canchas libres:', error);
-    throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
+    console.error('Error en buscarComplejosConCanchaLibre:', error);
+    throw new Error('Error al buscar complejos con canchas libres');
   }
-};
+}
 
 module.exports = router;

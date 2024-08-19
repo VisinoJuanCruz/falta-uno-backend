@@ -1,19 +1,28 @@
+// routes/canchas.js
 const express = require('express');
 const Complejo = require('../models/complejo');
 const Cancha = require('../models/cancha');
-const multer = require('multer');
 const router = express.Router();
 const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 
 // Configurar Cloudinary usando las variables de entorno
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Configurar Multer para manejar la carga de archivos
-const storage = multer.memoryStorage(); // Usar memoria para manejar los archivos
+// Configurar Multer para usar Cloudinary como almacenamiento
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'canchas', // Carpeta en Cloudinary donde se guardarán las imágenes
+    allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
+  },
+});
+
 const upload = multer({ storage });
 
 // Obtener todas las canchas
@@ -44,26 +53,14 @@ router.get('/canchas/:canchaId', async (req, res) => {
 
 // Crear una nueva cancha
 router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
-  const complejoExists = await Complejo.findById(req.body.complejoAlQuePertenece);
-  if (!complejoExists) {
-    return res.status(400).json({ error: 'El complejo especificado no existe' });
-  }
-
-  const formData = req.body;
-
   try {
-    let imagenUrl;
-    if (req.file) {
-      // Subir la imagen a Cloudinary
-      const result = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        });
-        uploadStream.end(req.file.buffer);
-      });
-      imagenUrl = result.secure_url; // Obtener la URL segura de la imagen
+    const complejoExists = await Complejo.findById(req.body.complejoAlQuePertenece);
+    if (!complejoExists) {
+      return res.status(400).json({ error: 'El complejo especificado no existe' });
     }
+
+    const formData = req.body;
+    const imagenUrl = req.file ? req.file.path : undefined;
 
     const cancha = new Cancha({
       capacidadJugadores: formData.capacidadJugadores,
@@ -91,6 +88,11 @@ router.put('/canchas/:canchaId', upload.single('canchaImagen'), async (req, res)
   const formData = req.body;
 
   try {
+    const cancha = await Cancha.findById(canchaId);
+    if (!cancha) {
+      return res.status(404).json({ message: 'Cancha no encontrada' });
+    }
+
     const updateFields = {
       nombre: formData.nombre,
       capacidadJugadores: formData.capacidadJugadores,
@@ -100,21 +102,15 @@ router.put('/canchas/:canchaId', upload.single('canchaImagen'), async (req, res)
     };
 
     if (req.file) {
-      // Subir la nueva imagen a Cloudinary
-      const result = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream({ resource_type: 'image' }, (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        });
-        uploadStream.end(req.file.buffer);
-      });
-      updateFields.imagen = result.secure_url; // Guardar la URL segura de la nueva imagen
+      // Eliminar la imagen anterior de Cloudinary
+      const publicId = cancha.imagen.split('/').pop().split('.')[0]; // Obtener el public_id de la imagen
+      await cloudinary.uploader.destroy(publicId);
+
+      // Usar el nuevo public_id de la imagen
+      updateFields.imagen = req.file.path;
     }
 
     const updatedCancha = await Cancha.findByIdAndUpdate(canchaId, updateFields, { new: true });
-    if (!updatedCancha) {
-      return res.status(404).json({ message: 'Cancha no encontrada' });
-    }
     res.json(updatedCancha);
   } catch (err) {
     console.error('Error al actualizar la cancha:', err);
@@ -127,7 +123,6 @@ router.delete('/canchas/:canchaId', async (req, res) => {
   const { canchaId } = req.params;
 
   try {
-    // Buscar la cancha antes de eliminarla para obtener la imagen
     const cancha = await Cancha.findById(canchaId);
     if (!cancha) {
       return res.status(404).json({ message: 'Cancha no encontrada' });
@@ -136,16 +131,10 @@ router.delete('/canchas/:canchaId', async (req, res) => {
     // Eliminar la imagen de Cloudinary
     if (cancha.imagen) {
       const publicId = cancha.imagen.split('/').pop().split('.')[0]; // Obtener el public_id de la imagen
-      await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+      await cloudinary.uploader.destroy(publicId);
     }
 
-    // Eliminar la cancha por su ID
-    const deletedCancha = await Cancha.findByIdAndDelete(canchaId);
-    if (!deletedCancha) {
-      return res.status(404).json({ message: 'Cancha no encontrada' });
-    }
-
-    // Eliminar la referencia de la cancha en el complejo
+    await Cancha.findByIdAndDelete(canchaId);
     await Complejo.updateOne(
       { canchas: canchaId },
       { $pull: { canchas: canchaId } }
@@ -161,26 +150,21 @@ router.delete('/canchas/:canchaId', async (req, res) => {
 // En el archivo de rutas para las canchas
 router.post('/canchas/:canchaId/reservar', async (req, res) => {
   const { canchaId } = req.params;
-  const { horario, precio } = req.body; // Recibe el horario y el precio de la reserva
+  const { horario, precio } = req.body;
 
   try {
-    // Encuentra la cancha por su ID
     const cancha = await Cancha.findById(canchaId);
     if (!cancha) {
       return res.status(404).json({ message: 'Cancha no encontrada' });
     }
 
-    // Crea una nueva reserva
     const reserva = {
       horario,
       precio,
-      fecha: new Date().toISOString(), // Puedes ajustar la fecha según tus necesidades
+      fecha: new Date().toISOString(),
     };
 
-    // Agrega la reserva a la lista de reservas de la cancha
     cancha.reservas.push(reserva);
-
-    // Guarda los cambios en la base de datos
     await cancha.save();
 
     res.json({ message: 'Reserva realizada correctamente' });

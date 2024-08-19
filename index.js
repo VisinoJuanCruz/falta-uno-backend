@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env.development' });
+require('dotenv').config()
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -18,9 +18,20 @@ require('./config/passport-config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-console.log(process.env.DB_NAME);
+app.use(cors({
+  origin: 'https://aqua-pony-582263.hostingersite.com',
+  credentials: true,
+}));
 
-app.use(cors());
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://aqua-pony-582263.hostingersite.com');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  next();
+});
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static('images'));
@@ -37,6 +48,9 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+
+
+
 app.use('/api', authRoutes);
 app.use('/api', playerRoutes);
 app.use('/api', userRoutes);
@@ -44,6 +58,8 @@ app.use('/api', teamRoutes);
 app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
+
+
 
 app.use(function (err, req, res, next) {
   console.log('This is the invalid field ->', err.field);

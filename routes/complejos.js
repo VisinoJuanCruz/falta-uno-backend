@@ -1,4 +1,3 @@
-// archivo: ./backend/routes/complejos.js
 const express = require('express');
 const router = express.Router();
 const authenticateUser = require('../middlewares/authenticate');
@@ -9,11 +8,19 @@ const multer = require('multer');
 const path = require('path');
 const mongoose = require('mongoose');
 const User = require('../models/user');
+const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Configurar Multer para manejar la carga de archivos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './images/complejos');
+    cb(null, './images/complejos'); // Ruta donde se guardarán las imágenes temporalmente
   },
   filename: function (req, file, cb) {
     const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
@@ -24,28 +31,30 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-
-
 // Verificar si el valor es un ObjectId válido
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
+// Crear un nuevo complejo
 router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   try {
     const formData = req.body;
-    const imagen = req.file.path;
+    const imagen = req.file ? req.file.path : null;
 
     if (!imagen) {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
+
+    // Subir la imagen a Cloudinary
+    const result = await cloudinary.uploader.upload(imagen);
 
     // Convertir el campo servicios de JSON string a array si es necesario
     const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
 
     const nuevoComplejo = new Complejo({
       nombre: formData.nombre,
-      imagen: imagen,
+      imagen: result.public_id, // Guardar el public_id de Cloudinary
       direccion: formData.direccion,
       telefono: formData.telefono,
       whatsapp: formData.whatsapp,
@@ -65,8 +74,7 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   }
 });
 
-
-
+// Obtener todos los complejos
 router.get('/complejos', async (req, res) => {
   try {
     const complejos = await Complejo.find().populate('canchas');
@@ -76,6 +84,7 @@ router.get('/complejos', async (req, res) => {
   }
 });
 
+// Obtener un complejo por su ID
 router.get('/complejos/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
 
@@ -88,7 +97,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
     if (!complejo) {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
-    
+
     console.log("Complejo a enviar:", complejo); // Agrega esto para depurar
     res.json(complejo);
   } catch (error) {
@@ -97,6 +106,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
   }
 });
 
+// Actualizar un complejo por su ID
 router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,7 +135,14 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
 
     // Si se subió una nueva imagen, añade la propiedad
     if (imagen) {
-      updateData.imagen = imagen;
+      // Eliminar la imagen anterior de Cloudinary
+      if (complejoActual.imagen) {
+        await cloudinary.uploader.destroy(complejoActual.imagen);
+      }
+
+      // Subir la nueva imagen a Cloudinary
+      const result = await cloudinary.uploader.upload(imagen);
+      updateData.imagen = result.public_id; // Guardar el public_id de la nueva imagen
     }
 
     const updatedComplejo = await Complejo.findByIdAndUpdate(id, updateData, { new: true });
@@ -136,11 +153,35 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
   }
 });
 
+// Eliminar un complejo por su ID
+router.delete('/complejos/:complejoId', async (req, res) => {
+  const { complejoId } = req.params;
 
+  try {
+    const complejo = await Complejo.findById(complejoId);
+    if (!complejo) {
+      return res.status(404).json({ message: 'Complejo no encontrado' });
+    }
 
+    // Eliminar la imagen de Cloudinary
+    if (complejo.imagen) {
+      await cloudinary.uploader.destroy(complejo.imagen);
+    }
 
+    await Complejo.findByIdAndDelete(complejoId);
+    await User.updateOne(
+      { complejos: complejoId },
+      { $pull: { complejos: complejoId } }
+    );
 
-// Aplicar los middlewares de autenticación y autorización
+    res.json({ message: 'Complejo eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar el complejo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Obtener estadísticas del complejo
 router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
 
@@ -163,6 +204,7 @@ router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForCom
   }
 });
 
+// Obtener reservas de un complejo
 router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
   const { startDate, endDate, canchaIds } = req.query;
@@ -185,12 +227,12 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
       query.horaInicio = { $gte: new Date(startDate), $lte: endDateWithTime };
     }
 
-    if (canchaIds) {
-      query.canchaId.$in = canchaIds.split(',');
+    if (canchaIds && Array.isArray(canchaIds)) {
+      query.canchaId = { $in: canchaIds };
     }
 
     const reservas = await Reserva.find(query).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
-
+    
     res.json(reservas);
   } catch (error) {
     console.error('Error al obtener reservas del complejo:', error);
@@ -198,54 +240,45 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
   }
 });
 
-
+// Buscar complejos con canchas disponibles
 router.post('/complejos/buscar', async (req, res) => {
-  const { fecha } = req.body;
-  
+  const { startDate, endDate } = req.body;
+
   try {
-    const complejosConCanchaLibre = await buscarComplejosConCanchaLibre(fecha);
-    res.json(complejosConCanchaLibre);
+    const complejos = await buscarComplejosConCanchaLibre(startDate, endDate);
+    res.json(complejos);
   } catch (error) {
-    console.error('Error al buscar complejos con canchas libres:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error al buscar complejos:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-// Función para buscar complejos con canchas libres
-const buscarComplejosConCanchaLibre = async (fecha) => {
+async function buscarComplejosConCanchaLibre(startDate, endDate) {
+  // Función para buscar complejos con canchas libres entre las fechas especificadas
   try {
-    const fechaUTC = new Date(fecha);
-    const complejos = await Complejo.find().populate('canchas');
-    const complejosConCanchaLibre = [];
+    const complejos = await Complejo.find();
+    const complejosConDisponibilidad = [];
 
-    for (const complejo of complejos) {
-      let tieneCanchaLibre = false;
+    for (let complejo of complejos) {
+      const canchasLibres = await Reserva.find({
+        canchaId: { $in: complejo.canchas },
+        horaInicio: { $gte: startDate, $lte: endDate },
+        reservado: false
+      }).populate('canchaId');
 
-      for (const cancha of complejo.canchas) {
-        const reservas = await Reserva.find({
-          canchaId: cancha._id,
-          horaInicio: fechaUTC,
+      if (canchasLibres.length > 0) {
+        complejosConDisponibilidad.push({
+          complejo,
+          canchasLibres
         });
-
-        if (reservas.length === 0 || reservas.some(reserva => !reserva.reservado)) {
-          tieneCanchaLibre = true;
-          break;
-        }
-      }
-
-      if (tieneCanchaLibre) {
-        complejosConCanchaLibre.push(complejo);
       }
     }
 
-    return complejosConCanchaLibre;
+    return complejosConDisponibilidad;
   } catch (error) {
-    console.error('Error al buscar complejos con canchas libres:', error);
-    throw new Error('Error al buscar complejos con canchas libres. Por favor, intenta de nuevo más tarde.');
+    console.error('Error en buscarComplejosConCanchaLibre:', error);
+    throw new Error('Error al buscar complejos con canchas libres');
   }
-};
-
-
+}
 
 module.exports = router;
-

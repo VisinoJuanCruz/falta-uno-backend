@@ -56,12 +56,16 @@ router.get('/players', async (req, res) => {
 router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {
     const formData = req.body;
+    let imagePublicId;
 
-    if (!req.file) {
+    // Verifica si se seleccionó una imagen predeterminada
+    if (formData.selectedImage) {
+      imagePublicId = formData.selectedImage; // Usar el public_id de la imagen predeterminada
+    } else if (req.file) {
+      imagePublicId = req.file.filename; // Usar el filename de la imagen subida
+    } else {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
-
-    const imagePublicId = req.file.filename; // Obtén el public_id desde el filename si se usa correctamente
 
     const teamExists = await Team.findById(formData.equipoId);
     if (!teamExists) {
@@ -70,7 +74,7 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
 
     const newPlayer = new Player({
       name: formData.name,
-      image: imagePublicId, // Guardar el public_id
+      image: imagePublicId, // Guardar el public_id seleccionado o subido
       puntajeAtacando: formData.puntajeAtacando,
       puntajeDefendiendo: formData.puntajeDefendiendo,
       puntajeAtajando: formData.puntajeAtajando,
@@ -88,6 +92,7 @@ router.post('/players', upload.single('playerImage'), async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al agregar jugador' });
   }
 });
+
 
 router.get('/players/:playerId', async (req, res) => {
   const { playerId } = req.params;
@@ -114,7 +119,7 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
     const currentPlayer = await Player.findById(playerId);
 
     if (!currentPlayer) {
-      return res.status(404).json({ error: 'Player no encontrado' });
+      return res.status(404).json({ error: 'Jugador no encontrado' });
     }
 
     let updateFields = {
@@ -124,19 +129,23 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       puntajeAtajando: formData.puntajeAtajando,
     };
 
+    // Si se ha subido una nueva imagen, gestionar la eliminación de la imagen anterior
     if (req.file) {
-      await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
+      if (currentPlayer.image) {
+        await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
+      }
 
       updateFields.image = req.file.filename; // Actualizar con el nuevo public_id
     }
 
-    const player = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
+    // Actualizar el jugador con los nuevos datos
+    const updatedPlayer = await Player.findByIdAndUpdate(playerId, updateFields, { new: true });
 
-    if (!player) {
-      return res.status(404).json({ error: 'Player no encontrado' });
+    if (!updatedPlayer) {
+      return res.status(404).json({ error: 'Jugador no encontrado después de la actualización' });
     }
 
-    res.json(player);
+    res.json(updatedPlayer);
   } catch (error) {
     console.error('Error al editar jugador:', error);
     res.status(500).json({ error: 'Error interno del servidor al editar jugador' });

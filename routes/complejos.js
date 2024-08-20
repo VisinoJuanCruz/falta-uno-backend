@@ -254,25 +254,30 @@ router.post('/complejos/buscar', async (req, res) => {
 });
 
 async function buscarComplejosConCanchaLibre(startDate, endDate) {
-  // Función para buscar complejos con canchas libres entre las fechas especificadas
   try {
-    const complejos = await Complejo.find();
-    const complejosConDisponibilidad = [];
-
-    for (let complejo of complejos) {
-      const canchasLibres = await Reserva.find({
-        canchaId: { $in: complejo.canchas },
-        horaInicio: { $gte: startDate, $lte: endDate },
-        reservado: false
-      }).populate('canchaId');
-
-      if (canchasLibres.length > 0) {
-        complejosConDisponibilidad.push({
-          complejo,
-          canchasLibres
-        });
+    const complejosConDisponibilidad = await Complejo.aggregate([
+      {
+        $lookup: {
+          from: 'reservas',
+          localField: 'canchas',
+          foreignField: 'canchaId',
+          as: 'reservas'
+        }
+      },
+      {
+        $match: {
+          'reservas.horaInicio': { $gte: new Date(startDate), $lte: new Date(endDate) },
+          'reservas.reservado': false
+        }
+      },
+      {
+        $project: {
+          nombre: 1,
+          direccion: 1,
+          reservas: 1
+        }
       }
-    }
+    ]);
 
     return complejosConDisponibilidad;
   } catch (error) {

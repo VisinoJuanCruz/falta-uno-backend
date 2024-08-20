@@ -129,13 +129,20 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       puntajeAtajando: formData.puntajeAtajando,
     };
 
-    // Si se ha subido una nueva imagen, gestionar la eliminación de la imagen anterior
-    if (req.file) {
+    // Si se seleccionó una imagen predeterminada, usa el public_id de esa imagen
+    if (formData.selectedImage) {
       if (currentPlayer.image) {
         await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
       }
 
-      updateFields.image = req.file.filename; // Actualizar con el nuevo public_id
+      updateFields.image = formData.selectedImage; // Actualizar con el public_id de la imagen seleccionada
+    } else if (req.file) {
+      // Si se subió una nueva imagen, usar esa
+      if (currentPlayer.image) {
+        await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
+      }
+
+      updateFields.image = req.file.filename; // Actualizar con el nuevo public_id de la imagen subida
     }
 
     // Actualizar el jugador con los nuevos datos

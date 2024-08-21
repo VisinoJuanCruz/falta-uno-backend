@@ -10,6 +10,8 @@ const mongoose = require('mongoose');
 const User = require('../models/user');
 const cloudinary = require('cloudinary').v2; // Importar Cloudinary
 
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
 // Configurar Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -17,16 +19,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Configurar Multer para manejar la carga de archivos
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, './images/complejos'); // Ruta donde se guardarán las imágenes temporalmente
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'complejos',
+    allowedFormats: ['jpg', 'jpeg', 'png', 'gif']
   },
-  filename: function (req, file, cb) {
-    const filenameWithoutExtension = path.basename(file.originalname, path.extname(file.originalname));
-    const newFilename = `${filenameWithoutExtension}-${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, newFilename);
-  }
 });
 
 const upload = multer({ storage });
@@ -40,21 +38,20 @@ function isValidObjectId(id) {
 router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
   try {
     const formData = req.body;
-    const imagen = req.file ? req.file.path : null;
+    let imagePublicId;
 
-    if (!imagen) {
+    if (req.file) {
+      imagePublicId = req.file.filename; // Usar el public_id de la imagen subida
+    } else {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
-
-    // Subir la imagen a Cloudinary
-    const result = await cloudinary.uploader.upload(imagen);
 
     // Convertir el campo servicios de JSON string a array si es necesario
     const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
 
     const nuevoComplejo = new Complejo({
       nombre: formData.nombre,
-      imagen: result.public_id, // Guardar el public_id de Cloudinary
+      imagen: imagePublicId, // Guardar el public_id de la imagen en Cloudinary
       direccion: formData.direccion,
       telefono: formData.telefono,
       whatsapp: formData.whatsapp,
@@ -69,10 +66,11 @@ router.post('/complejos', upload.single('complejoImagen'), async (req, res) => {
     await User.findByIdAndUpdate(formData.userId, { $push: { complejos: savedComplejo._id } });
     res.status(201).json(savedComplejo);
   } catch (error) {
-    console.error(error);
+    console.error('Error al guardar el complejo:', error);
     res.status(500).json({ error: 'Error al guardar el complejo' });
   }
 });
+
 
 // Obtener todos los complejos
 router.get('/complejos', async (req, res) => {
@@ -111,7 +109,6 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
   try {
     const { id } = req.params;
     const formData = req.body;
-    const imagen = req.file ? req.file.path : null;
 
     // Obtener el complejo actual desde la base de datos
     const complejoActual = await Complejo.findById(id);
@@ -119,39 +116,38 @@ router.put('/complejos/:id', upload.single('complejoImagen'), async (req, res) =
       return res.status(404).json({ error: 'Complejo no encontrado' });
     }
 
-    // Asegúrate de que si hay una imagen nueva, se actualice
-    const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
-
-    // Combina los datos existentes con los nuevos datos
-    const updateData = {
+    let updateData = {
       nombre: formData.nombre || complejoActual.nombre,
       direccion: formData.direccion || complejoActual.direccion,
       telefono: formData.telefono || complejoActual.telefono,
       whatsapp: formData.whatsapp || complejoActual.whatsapp,
       instagram: formData.instagram || complejoActual.instagram,
       descripcion: formData.descripcion || complejoActual.descripcion,
-      servicios: servicios.length > 0 ? servicios : complejoActual.servicios, // Actualiza solo si hay nuevos servicios
     };
 
-    // Si se subió una nueva imagen, añade la propiedad
-    if (imagen) {
-      // Eliminar la imagen anterior de Cloudinary
+    // Convertir el campo servicios de JSON string a array si es necesario
+    const servicios = typeof formData.servicios === 'string' ? JSON.parse(formData.servicios) : formData.servicios;
+    updateData.servicios = servicios.length > 0 ? servicios : complejoActual.servicios;
+
+    // Si se subió una nueva imagen, manejar la eliminación de la imagen anterior y la subida de la nueva imagen
+    if (req.file) {
       if (complejoActual.imagen) {
-        await cloudinary.uploader.destroy(complejoActual.imagen);
+        await cloudinary.uploader.destroy(complejoActual.imagen); // Eliminar la imagen antigua usando el public_id
       }
 
-      // Subir la nueva imagen a Cloudinary
-      const result = await cloudinary.uploader.upload(imagen);
-      updateData.imagen = result.public_id; // Guardar el public_id de la nueva imagen
+      updateData.imagen = req.file.filename; // Actualizar con el nuevo public_id
     }
 
+    // Actualizar el complejo con los nuevos datos
     const updatedComplejo = await Complejo.findByIdAndUpdate(id, updateData, { new: true });
+
     res.status(200).json(updatedComplejo);
   } catch (error) {
     console.error('Error al actualizar el complejo:', error);
     res.status(500).json({ error: 'Error al actualizar el complejo' });
   }
 });
+
 
 // Eliminar un complejo por su ID
 router.delete('/complejos/:complejoId', async (req, res) => {

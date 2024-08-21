@@ -51,73 +51,74 @@ router.get('/canchas/:canchaId', async (req, res) => {
   }
 });
 
+
 // Crear una nueva cancha
 router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
   try {
-    const complejoExists = await Complejo.findById(req.body.complejoAlQuePertenece);
-    if (!complejoExists) {
-      return res.status(400).json({ error: 'El complejo especificado no existe' });
+    const formData = req.body;
+
+    let imagePublicId;
+    if (req.file) {
+      imagePublicId = req.file.filename; // Usar el filename de la imagen subida
+    } else {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    const formData = req.body;
-    const imagenUrl = req.file ? req.file.path : undefined;
-
-    const cancha = new Cancha({
-      capacidadJugadores: formData.capacidadJugadores,
-      alAireLibre: formData.alAireLibre,
-      materialPiso: formData.materialPiso,
-      precio: formData.precio,
-      complejoAlQuePertenece: formData.complejoAlQuePertenece,
-      reservas: [],
-      imagen: imagenUrl, // Guardar la URL de la imagen
+    const nuevoCancha = new Cancha({
       nombre: formData.nombre,
+      tipo: formData.tipo,
+      precio: formData.precio,
+      imagen: imagePublicId, // Guardar el public_id de la imagen
+      complejo: formData.complejoId,
     });
 
-    const savedCancha = await cancha.save();
-    await Complejo.findByIdAndUpdate(req.body.complejoAlQuePertenece, { $push: { canchas: savedCancha._id } });
+    const savedCancha = await nuevoCancha.save();
+
+    await Complejo.findByIdAndUpdate(formData.complejoId, { $push: { canchas: savedCancha._id } });
+
     res.status(201).json(savedCancha);
-  } catch (err) {
-    console.error('Error al guardar la cancha:', err);
-    res.status(400).json({ message: err.message });
+  } catch (error) {
+    console.error('Error al crear cancha:', error);
+    res.status(500).json({ error: 'Error interno del servidor al crear cancha' });
   }
 });
 
-// Editar una cancha por su ID
-router.put('/canchas/:canchaId', upload.single('canchaImagen'), async (req, res) => {
-  const { canchaId } = req.params;
-  const formData = req.body;
-
+// Actualizar una cancha por su ID
+router.put('/canchas/:id', upload.single('canchaImagen'), async (req, res) => {
   try {
-    const cancha = await Cancha.findById(canchaId);
-    if (!cancha) {
-      return res.status(404).json({ message: 'Cancha no encontrada' });
+    const { id } = req.params;
+    const formData = req.body;
+
+    // Obtener la cancha actual desde la base de datos
+    const canchaActual = await Cancha.findById(id);
+    if (!canchaActual) {
+      return res.status(404).json({ error: 'Cancha no encontrada' });
     }
 
-    const updateFields = {
-      nombre: formData.nombre,
-      capacidadJugadores: formData.capacidadJugadores,
-      alAireLibre: formData.alAireLibre,
-      materialPiso: formData.materialPiso,
-      precio: formData.precio,
+    let updateData = {
+      nombre: formData.nombre || canchaActual.nombre,
+      tipo: formData.tipo || canchaActual.tipo,
+      precio: formData.precio || canchaActual.precio,
     };
 
+    // Si se subió una nueva imagen, manejar la eliminación de la imagen anterior y la subida de la nueva imagen
     if (req.file) {
-      // Eliminar la imagen anterior de Cloudinary
-      const publicId = cancha.imagen.split('/').pop().split('.')[0]; // Obtener el public_id de la imagen
-      await cloudinary.uploader.destroy(publicId);
+      if (canchaActual.imagen) {
+        await cloudinary.uploader.destroy(canchaActual.imagen); // Eliminar la imagen antigua usando el public_id
+      }
 
-      // Usar el nuevo public_id de la imagen
-      updateFields.imagen = req.file.path;
+      updateData.imagen = req.file.filename; // Actualizar con el nuevo public_id
     }
 
-    const updatedCancha = await Cancha.findByIdAndUpdate(canchaId, updateFields, { new: true });
-    res.json(updatedCancha);
-  } catch (err) {
-    console.error('Error al actualizar la cancha:', err);
-    res.status(400).json({ message: err.message });
+    // Actualizar la cancha con los nuevos datos
+    const updatedCancha = await Cancha.findByIdAndUpdate(id, updateData, { new: true });
+
+    res.status(200).json(updatedCancha);
+  } catch (error) {
+    console.error('Error al actualizar cancha:', error);
+    res.status(500).json({ error: 'Error al actualizar cancha' });
   }
 });
-
 // Eliminar una cancha específica
 router.delete('/canchas/:canchaId', async (req, res) => {
   const { canchaId } = req.params;

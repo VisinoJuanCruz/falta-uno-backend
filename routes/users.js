@@ -46,6 +46,12 @@ router.post('/users', async (req, res) => {
     const { mail, name, whatsapp, password } = req.body;
     console.log('Datos recibidos:', mail, name, whatsapp, password);
 
+    // Verifica si el correo electrónico ya está registrado
+    const existingUser = await User.findOne({ mail });
+    if (existingUser) {
+      return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
+    }
+
     // Encripta la contraseña antes de guardarla en la base de datos
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -57,7 +63,7 @@ router.post('/users', async (req, res) => {
       equiposCreados: [], // Agrega la propiedad equiposCreados como un array vacío
       role: 'Usuario',
       complejos: [] //
-      });
+    });
 
     const savedUser = await newUser.save();
     console.log('Usuario guardado:', savedUser);

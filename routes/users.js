@@ -41,10 +41,12 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // Crear un nuevo usuario
+
+
+
 router.post('/users', async (req, res) => {
   try {
     const { mail, name, whatsapp, password } = req.body;
-    console.log('Datos recibidos:', mail, name, whatsapp, password);
 
     // Verifica si el correo electrónico ya está registrado
     const existingUser = await User.findOne({ mail });
@@ -52,29 +54,32 @@ router.post('/users', async (req, res) => {
       return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
     }
 
+    // Verifica si el correo electrónico es válido
+    if (!/\S+@\S+\.\S+/.test(mail)) {
+      return res.status(400).json({ error: 'El correo electrónico no es válido.' });
+    }
+
     // Encripta la contraseña antes de guardarla en la base de datos
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
       mail,
-      password: hashedPassword, // Almacena la contraseña encriptada
+      password: hashedPassword,
       name,
       whatsapp,
-      equiposCreados: [], // Agrega la propiedad equiposCreados como un array vacío
+      equiposCreados: [],
       role: 'Usuario',
-      complejos: [] //
+      complejos: []
     });
 
     const savedUser = await newUser.save();
-    console.log('Usuario guardado:', savedUser);
     await sendWelcomeEmail(newUser.mail);
     res.status(201).json(savedUser);
   } catch (error) {
     console.error('Error al agregar usuario:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: 'Error interno del servidor. Inténtelo de nuevo más tarde.' });
   }
 });
-
 router.put('/profile/change-password', passport.authenticate('jwt', { session: false }), async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   

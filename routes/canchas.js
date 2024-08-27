@@ -1,4 +1,4 @@
-// routes/canchas.js
+// Archivo: ./backend/routes/canchas.js
 const express = require('express');
 const Complejo = require('../models/complejo');
 const Cancha = require('../models/cancha');

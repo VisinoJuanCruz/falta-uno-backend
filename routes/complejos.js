@@ -1,3 +1,4 @@
+//Archivo: ./backend/routes/comeplejos.js
 const express = require('express');
 const router = express.Router();
 const authenticateUser = require('../middlewares/authenticate');
@@ -96,7 +97,7 @@ router.get('/complejos/:complejoId', async (req, res) => {
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
 
-    console.log("Complejo a enviar:", complejo); // Agrega esto para depurar
+
     res.json(complejo);
   } catch (error) {
     console.error('Error al obtener complejo por ID:', error);
@@ -199,7 +200,6 @@ router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForCom
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 // Obtener reservas de un complejo
 router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
@@ -238,48 +238,96 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
 
 // Buscar complejos con canchas disponibles
 router.post('/complejos/buscar', async (req, res) => {
-  const { startDate, endDate } = req.body;
-
+  const { startDate } = req.body;
   try {
-    const complejos = await buscarComplejosConCanchaLibre(startDate, endDate);
-    res.json(complejos);
+    const complejosConDisponibilidad = await buscarComplejosConCanchaLibre(startDate);
+    res.json(complejosConDisponibilidad);
   } catch (error) {
-    console.error('Error al buscar complejos:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-async function buscarComplejosConCanchaLibre(startDate, endDate) {
+
+async function buscarComplejosConCanchaLibre(startDate) {
   try {
+    if (!startDate) {
+      throw new Error('Fecha no válida para la búsqueda de complejos con canchas libres');
+    }
+
     const complejosConDisponibilidad = await Complejo.aggregate([
       {
         $lookup: {
-          from: 'reservas',
-          localField: 'canchas',
-          foreignField: 'canchaId',
+          from: 'canchas', // Unir canchas con complejos
+          localField: '_id',
+          foreignField: 'complejoAlQuePertenece',
+          as: 'canchas'
+        }
+      },
+      {
+        $unwind: '$canchas' // Descomponer array de canchas para trabajar con cada una individualmente
+      },
+      {
+        $lookup: {
+          from: 'reservas', // Unir reservas con canchas
+          let: { canchaId: '$canchas._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$canchaId', '$$canchaId'] },
+                    { $eq: ['$horaInicio', new Date(startDate)] },
+                  ]
+                }
+              }
+            }
+          ],
           as: 'reservas'
         }
       },
       {
-        $match: {
-          'reservas.horaInicio': { $gte: new Date(startDate), $lte: new Date(endDate) },
-          'reservas.reservado': false
+        $addFields: {
+          reservaDisponible: {
+            $cond: {
+              if: { $eq: [{ $size: '$reservas' }, 0] }, // No hay reservas para la hora especificada
+              then: true,
+              else: { $not: [{ $anyElementTrue: '$reservas.reservado' }] } // Verificar si todas las reservas son `reservado: false`
+            }
+          }
         }
       },
       {
-        $project: {
-          nombre: 1,
-          direccion: 1,
-          reservas: 1
+        $match: { reservaDisponible: true } // Filtrar canchas que están disponibles
+      },
+      {
+        $group: {
+          _id: '$_id',
+          nombre: { $first: '$nombre' },
+          direccion: { $first: '$direccion' },
+          telefono: { $first: '$telefono' },
+          whatsapp: { $first: '$whatsapp' },
+          instagram: { $first: '$instagram' },
+          imagen: { $first: '$imagen' },
+          canchas: {
+            $push: {
+              _id: '$canchas._id',
+              nombre: '$canchas.nombre',
+              capacidadJugadores: '$canchas.capacidadJugadores',
+              precio: '$canchas.precio',
+              reservas: '$reservas' // Incluye reservas del día
+            }
+          }
         }
       }
     ]);
 
     return complejosConDisponibilidad;
   } catch (error) {
-    console.error('Error en buscarComplejosConCanchaLibre:', error);
-    throw new Error('Error al buscar complejos con canchas libres');
+    console.error('Error al buscar complejos con cancha libre:', error);
+    throw error;
   }
 }
+
+
 
 module.exports = router;

@@ -68,6 +68,8 @@ router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
       nombre: formData.nombre,
       tipo: formData.tipo,
       precio: formData.precio,
+      horaDeSubida: formData.horaDeSubida || null, // Nueva propiedad
+      precioDeSubida: formData.precioDeSubida || null, // Nueva propiedad
       imagen: imagePublicId, // Guardar el public_id de la imagen
       complejo: formData.complejoId,
     });
@@ -82,6 +84,7 @@ router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al crear cancha' });
   }
 });
+
 
 // Actualizar una cancha por su ID
 router.put('/canchas/:id', upload.single('canchaImagen'), async (req, res) => {
@@ -99,6 +102,8 @@ router.put('/canchas/:id', upload.single('canchaImagen'), async (req, res) => {
       nombre: formData.nombre || canchaActual.nombre,
       tipo: formData.tipo || canchaActual.tipo,
       precio: formData.precio || canchaActual.precio,
+      horaDeSubida: formData.horaDeSubida || canchaActual.horaDeSubida, // Nueva propiedad
+      precioDeSubida: formData.precioDeSubida || canchaActual.precioDeSubida, // Nueva propiedad
     };
 
     // Si se subió una nueva imagen, manejar la eliminación de la imagen anterior y la subida de la nueva imagen
@@ -119,6 +124,7 @@ router.put('/canchas/:id', upload.single('canchaImagen'), async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar cancha' });
   }
 });
+
 // Eliminar una cancha específica
 router.delete('/canchas/:canchaId', async (req, res) => {
   const { canchaId } = req.params;

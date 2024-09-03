@@ -229,4 +229,35 @@ router.get('/verify-email', async (req, res) => {
 });
 
 
+// Endpoint para reenviar el email de verificación
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { mail } = req.body;
+
+    const user = await User.findOne({ mail });
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado.' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'El usuario ya ha verificado su email.' });
+    }
+
+    // Generar un nuevo token de verificación
+    const verificationToken = jwt.sign({ mail: user.mail }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    user.verificationToken = verificationToken;
+    await user.save();
+
+    // Reenviar el email de verificación
+    await sendVerificationEmail(user.mail, verificationToken);
+
+    res.status(200).json({ message: 'Email de verificación reenviado exitosamente.' });
+  } catch (error) {
+    console.error('Error al reenviar el email de verificación:', error);
+    res.status(500).json({ message: 'Error al reenviar el email de verificación.' });
+  }
+});
+
+
+
 module.exports = router;

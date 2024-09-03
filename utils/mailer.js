@@ -28,7 +28,8 @@ const sendWelcomeEmail = async (email) => {
 
 // Archivo: backend/utils/mailer.js
 const sendVerificationEmail = async (email, token) => {
-  const verificationLink = `http://localhost:5173/verify-email?token=${token}`;
+  // Construye el enlace de verificación con el token
+  const verificationLink = `${process.env.BASE_URL}/verify-email?token=${token}`;
 
   const mailOptions = {
     from: 'tuCorreo@gmail.com',

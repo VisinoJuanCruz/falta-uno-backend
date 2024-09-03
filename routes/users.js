@@ -1,10 +1,11 @@
 // Archivo: backend/routes/users.js
 const express = require('express');
 const passport = require('passport');
+const jwt = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
-const {sendWelcomeEmail} = require('../utils/mailer');
+const { sendVerificationEmail} = require('../utils/mailer');
 
 const router = express.Router();
 
@@ -41,9 +42,6 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // Crear un nuevo usuario
-
-
-
 router.post('/users', async (req, res) => {
   try {
     const { mail, name, whatsapp, password } = req.body;
@@ -62,6 +60,10 @@ router.post('/users', async (req, res) => {
     // Encripta la contraseña antes de guardarla en la base de datos
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Genera el token de verificación
+    const verificationToken = jwt.sign({ mail }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+    // Crea el nuevo usuario
     const newUser = new User({
       mail,
       password: hashedPassword,
@@ -69,17 +71,24 @@ router.post('/users', async (req, res) => {
       whatsapp,
       equiposCreados: [],
       role: 'Usuario',
-      complejos: []
+      complejos: [],
+      isVerified: false, // El usuario no está verificado inicialmente
+      verificationToken // Guarda el token de verificación
     });
 
     const savedUser = await newUser.save();
-    await sendWelcomeEmail(newUser.mail);
-    res.status(201).json(savedUser);
+
+    // Enviar email de verificación
+    await sendVerificationEmail(newUser.mail, verificationToken);
+
+    res.status(201).json({ message: 'Usuario creado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.' });
   } catch (error) {
     console.error('Error al agregar usuario:', error);
     res.status(500).json({ error: 'Error interno del servidor. Inténtelo de nuevo más tarde.' });
   }
 });
+
+
 router.put('/profile/change-password', passport.authenticate('jwt', { session: false }), async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   

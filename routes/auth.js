@@ -8,31 +8,50 @@ const { sendWelcomeEmail, sendVerificationEmail } = require('../utils/mailer');
 const router = express.Router();
 
 // Ruta para el inicio de sesión
-router.post('/login', async (req, res) => {
-  passport.authenticate('local', { session: false }, (err, user, info) => {
-    if (err) {
-      console.error('Error en autenticación local:', err);
-      return res.status(500).json({ message: 'Error en la autenticación local' });
+
+router.post('/register', async (req, res) => {
+  try {
+    const { mail, name, whatsapp, password } = req.body;
+
+    // Verificar si el usuario ya está registrado
+    const existingUser = await User.findOne({ mail });
+    if (existingUser) {
+      return res.status(400).json({ message: 'El usuario ya está registrado' });
     }
-    if (!user) {
-      console.log('Usuario no encontrado');
-      return res.status(401).json({ message: 'Usuario no encontrado en la base de datos' });
-    }
-    req.logIn(user, { session: false }, async (err) => {
-      if (err) {
-        console.error('Error al iniciar sesión:', err);
-        return res.status(500).json({ message: 'Error al iniciar sesión' });
-      }
-      console.log('Inicio de sesión exitoso');
-      await user.populate('complejos');
-      // Generar token JWT
-      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
-      // Devolver los datos del usuario sin la contraseña
-      const userData = { _id: user._id, name: user.name, mail: user.mail, whatsapp: user.whatsapp, equiposCreados: user.equiposCreados, role: user.role, complejos: user.complejos };
-      return res.json({ token, user: userData });
+
+    // Encriptar la contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generar token de verificación
+    const verificationToken = jwt.sign({ mail }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+    // Crear el nuevo usuario
+    const newUser = new User({
+      mail,
+      password: hashedPassword,
+      name,
+      whatsapp,
+      isVerified: false,
+      verificationToken,  // Guardamos el token en el usuario
+      equiposCreados: [],
+      role: 'Usuario',
+      complejos: []
     });
-  })(req, res);
+
+    await newUser.save();
+
+    // Enviar correo de verificación
+    await sendVerificationEmail(newUser.mail, verificationToken);
+
+    // Responder con un mensaje al frontend
+    res.status(201).json({ message: 'Usuario creado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.' });
+  } catch (error) {
+    console.error('Error al registrar usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor al registrar usuario' });
+  }
 });
+
+
 
 // Middleware para verificar el token JWT
 const authenticateJWT = (req, res, next) => {
@@ -63,34 +82,29 @@ router.post('/register', async (req, res) => {
   try {
     const { mail, name, whatsapp, password } = req.body;
 
-    // Verificar si el usuario ya está registrado
     const existingUser = await User.findOne({ mail });
     if (existingUser) {
       return res.status(400).json({ message: 'El usuario ya está registrado' });
     }
 
-    // Encriptar la contraseña antes de guardarla en la base de datos
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = jwt.sign({ mail }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-    // Crear un nuevo usuario
     const newUser = new User({
       mail,
-      password: hashedPassword, // Almacena la contraseña encriptada
+      password: hashedPassword,
       name,
       whatsapp,
-      equiposCreados: [], // Agrega la propiedad equiposCreados como un array vacío
+      equiposCreados: [],
       role: 'Usuario',
-      complejos: [] //
+      complejos: [],
+      isVerified: false,
+      verificationToken
     });
 
-    // Guardar el nuevo usuario en la base de datos
     await newUser.save();
+    await sendVerificationEmail(newUser.mail, verificationToken);
 
-    // Enviar correo electrónico de verificación
-    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET);
-    await sendVerificationEmail(newUser.mail, token);
-
-    // Enviar respuesta al cliente
     res.status(201).json({ message: 'Usuario creado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.' });
   } catch (error) {
     console.error('Error al registrar usuario:', error);
@@ -144,6 +158,29 @@ router.post('/reset-password-request', async (req, res) => {
   } catch (error) {
     console.error('Error al solicitar restablecimiento de contraseña:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+// Archivo: backend/routes/auth.js
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findOne({ mail: decoded.mail, verificationToken: token });
+    if (!user) {
+      return res.status(400).json({ message: 'Token inválido o expirado.' });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined; // Elimina el token después de verificar
+    await user.save();
+
+    res.status(200).json({ message: 'Cuenta verificada exitosamente. Ahora puedes iniciar sesión.' });
+  } catch (error) {
+    console.error('Error al verificar email:', error);
+    res.status(500).json({ error: 'Error interno del servidor al verificar email' });
   }
 });
 

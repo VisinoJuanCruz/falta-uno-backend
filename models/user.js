@@ -1,3 +1,4 @@
+// Archivo: backend/models/user.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -7,7 +8,9 @@ const userSchema = new mongoose.Schema({
   whatsapp: { type: String, required: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['Usuario', 'Cliente', 'Superusuario'], default: 'Usuario' },
-  complejos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Complejo' }] // Referencia al modelo de complejo
+  complejos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Complejo' }],
+  isVerified: { type: Boolean, default: false }, // Nuevo campo para verificar si el email ha sido confirmado
+  verificationToken: { type: String } // Nuevo campo para almacenar el token de verificación
 });
 
 const User = mongoose.model('User', userSchema);

@@ -1,4 +1,4 @@
-// routes/teams.js
+//Archivo: ./backend/routes/teams.js
 const express = require('express');
 const Team = require('../models/team');
 const Player = require('../models/player');
@@ -97,26 +97,6 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
   }
 });
 
-// Agregar un jugador a un equipo
-router.post('/teams/:teamId/add-player', async (req, res) => {
-  try {
-    const { teamId } = req.params;
-    const { playerId } = req.body;
-
-    const team = await Team.findById(teamId);
-    if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
-
-    const player = await Player.findById(playerId);
-    if (!player) return res.status(404).json({ error: 'Jugador no encontrado' });
-
-    team.jugadores.push(playerId);
-    await team.save();
-
-    res.status(200).json({ message: 'Jugador agregado exitosamente al equipo' });
-  } catch (error) {
-    res.status(500).json({ error: 'Error interno del servidor al agregar jugador al equipo' });
-  }
-});
 
 // Obtener los equipos de un usuario específico
 router.get('/teams/user/:userId', async (req, res) => {
@@ -132,24 +112,40 @@ router.get('/teams/user/:userId', async (req, res) => {
 router.delete('/teams/:teamId', async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId);
-    if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
+    if (!team) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
 
-    // Eliminar la imagen de Cloudinary
-    await cloudinary.uploader.destroy(team.escudo);
+    // Eliminar la imagen del equipo (team.escudo) de Cloudinary
+    if (team.escudo) {
+      await cloudinary.uploader.destroy(team.escudo);
+    }
+
+    // Eliminar todos los jugadores asociados al equipo eliminado
+    const players = await Player.find({ equipo: req.params.teamId });
+
+    for (const player of players) {
+      // Solo eliminar la imagen del jugador de Cloudinary si no es una imagen predefinida
+      if (player.image && !player.image.startsWith('players/predefined_')) {
+        await cloudinary.uploader.destroy(player.image);
+      }
+
+      // Eliminar el jugador de la base de datos
+      await Player.findByIdAndDelete(player._id);
+    }
 
     // Eliminar el equipo de la base de datos
     await Team.findByIdAndDelete(req.params.teamId);
 
-    // Eliminar todos los jugadores asociados al equipo eliminado
-    await Player.deleteMany({ equipo: req.params.teamId });
-
-    // Quitar el equipo de la lista de equipos creados del usuario que lo creó
+    // Quitar el equipo de la lista de equipos creados por el usuario
     await User.updateOne({ _id: team.creadoPor }, { $pull: { equiposCreados: req.params.teamId } });
 
-    res.status(200).json({ message: 'Equipo eliminado exitosamente' });
+    res.status(200).json({ message: 'Equipo y jugadores eliminados exitosamente' });
   } catch (error) {
+    console.error('Error al eliminar equipo y jugadores:', error);
     res.status(500).json({ error: 'Error interno del servidor al eliminar equipo' });
   }
 });
+
 
 module.exports = router;

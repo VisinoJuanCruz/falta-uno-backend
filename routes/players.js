@@ -1,4 +1,4 @@
-// routes/players.js
+//Archivo: ./backend/routes/players.js
 const express = require('express');
 const Player = require('../models/player');
 const Team = require('../models/team');
@@ -129,20 +129,16 @@ router.put('/players/:playerId', upload.single('playerImage'), async (req, res) 
       puntajeAtajando: formData.puntajeAtajando,
     };
 
-    // Si se seleccionó una imagen predeterminada, usa el public_id de esa imagen
+    // Verificar si la imagen actual no es predefinida antes de eliminarla
+    if (!currentPlayer.image.startsWith('players/predefined_')) {
+      await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua de Cloudinary
+    }
+
+    // Actualizar con la nueva imagen
     if (formData.selectedImage) {
-      if (currentPlayer.image) {
-        await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
-      }
-
-      updateFields.image = formData.selectedImage; // Actualizar con el public_id de la imagen seleccionada
+      updateFields.image = formData.selectedImage; // Usar la imagen predefinida
     } else if (req.file) {
-      // Si se subió una nueva imagen, usar esa
-      if (currentPlayer.image) {
-        await cloudinary.uploader.destroy(currentPlayer.image); // Eliminar la imagen antigua usando el public_id
-      }
-
-      updateFields.image = req.file.filename; // Actualizar con el nuevo public_id de la imagen subida
+      updateFields.image = req.file.filename; // Usar la nueva imagen subida
     }
 
     // Actualizar el jugador con los nuevos datos
@@ -177,6 +173,24 @@ router.get('/players/by-team/:teamId', async (req, res) => {
   }
 });
 
+router.get('/players/by-team/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    const teamExists = await Team.findById(teamId);
+    if (!teamExists) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    const players = await Player.find({ equipo: teamId });
+
+    res.json(players);
+  } catch (error) {
+    console.error('Error al obtener jugadores por teamId:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener jugadores por teamId' });
+  }
+});
+
 router.delete('/players/:playerId', async (req, res) => {
   const { playerId } = req.params;
 
@@ -186,10 +200,12 @@ router.delete('/players/:playerId', async (req, res) => {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
 
-    await cloudinary.uploader.destroy(player.image); // Eliminar la imagen de Cloudinary
+    // Solo eliminar la imagen si no es una imagen predefinida
+    if (!player.image.startsWith('players/predefined_')) {
+      await cloudinary.uploader.destroy(player.image); // Eliminar la imagen de Cloudinary
+    }
 
     await Player.findByIdAndDelete(playerId);
-
     await Team.findByIdAndUpdate(player.equipo, { $pull: { jugadores: playerId } });
 
     res.json({ message: 'Jugador eliminado exitosamente' });

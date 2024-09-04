@@ -40,7 +40,7 @@ router.put('/admin/users/:id/role', passport.authenticate('jwt', { session: fals
   }
 });
 
-// Eliminar un usuario y todos los documentos relacionados
+/ Eliminar un usuario y todos los documentos relacionados
 router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false }), ensureSuperUser, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -56,21 +56,46 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
     }
 
     // Eliminar equipos creados por el usuario
-    await Team.deleteMany({ _id: { $in: user.equiposCreados } }).session(session);
+    const teams = await Team.find({ _id: { $in: user.equiposCreados } }).session(session);
+    for (const team of teams) {
+      // Eliminar jugadores asociados al equipo
+      const players = await Player.find({ equipo: team._id }).session(session);
+      for (const player of players) {
+        // Solo eliminar la imagen si no es una imagen predefinida
+        if (!player.image.startsWith('players/predefined_')) {
+          await cloudinary.uploader.destroy(player.image); // Eliminar la imagen de Cloudinary
+        }
+        await Player.findByIdAndDelete(player._id).session(session);
+      }
 
-    // Eliminar jugadores asociados a los equipos creados por el usuario
-    await Player.deleteMany({ equipo: { $in: user.equiposCreados } }).session(session);
+      // Eliminar la imagen del equipo si existe (y no es predefinida, si eso fuera aplicable)
+      await cloudinary.uploader.destroy(team.escudo);
+      await Team.findByIdAndDelete(team._id).session(session);
+    }
 
     // Eliminar complejos asociados al usuario
-    await Complejo.deleteMany({ _id: { $in: user.complejos } }).session(session);
+    const complejos = await Complejo.find({ _id: { $in: user.complejos } }).session(session);
+    for (const complejo of complejos) {
+      // Eliminar canchas asociadas al complejo
+      const canchas = await Cancha.find({ complejoAlQuePertenece: complejo._id }).session(session);
+      for (const cancha of canchas) {
+        // Eliminar la imagen de la cancha si existe
+        if (cancha.imagen) {
+          await cloudinary.uploader.destroy(cancha.imagen);
+        }
+        await Cancha.findByIdAndDelete(cancha._id).session(session);
+      }
+      
+      // Eliminar reservas asociadas a las canchas del complejo
+      await Reserva.deleteMany({ canchaId: { $in: canchas.map(c => c._id) } }).session(session);
 
-    // Eliminar canchas asociadas a los complejos del usuario
-    const canchas = await Cancha.find({ complejoAlQuePertenece: { $in: user.complejos } }).session(session);
-    const canchaIds = canchas.map(cancha => cancha._id);
-    await Cancha.deleteMany({ _id: { $in: canchaIds } }).session(session);
+      // Eliminar la imagen del complejo si existe
+      if (complejo.imagen) {
+        await cloudinary.uploader.destroy(complejo.imagen);
+      }
 
-    // Eliminar reservas asociadas a las canchas de los complejos del usuario
-    await Reserva.deleteMany({ canchaId: { $in: canchaIds } }).session(session);
+      await Complejo.findByIdAndDelete(complejo._id).session(session);
+    }
 
     // Finalmente, eliminar el usuario
     await User.findByIdAndDelete(id).session(session);
@@ -86,5 +111,6 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 });
+
 
 module.exports = router;

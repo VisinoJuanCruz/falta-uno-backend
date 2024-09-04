@@ -40,6 +40,7 @@ router.put('/admin/users/:id/role', passport.authenticate('jwt', { session: fals
   }
 });
 
+
 // Eliminar un usuario y todos los documentos relacionados
 router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false }), ensureSuperUser, async (req, res) => {
   const session = await mongoose.startSession();
@@ -62,14 +63,16 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
       const players = await Player.find({ equipo: team._id }).session(session);
       for (const player of players) {
         // Solo eliminar la imagen si no es una imagen predefinida
-        if (!player.image.startsWith('players/predefined_')) {
+        if (player.image && !player.image.startsWith('players/predefined_')) {
           await cloudinary.uploader.destroy(player.image); // Eliminar la imagen de Cloudinary
         }
         await Player.findByIdAndDelete(player._id).session(session);
       }
 
-      // Eliminar la imagen del equipo si existe (y no es predefinida, si eso fuera aplicable)
-      await cloudinary.uploader.destroy(team.escudo);
+      // Eliminar la imagen del equipo
+      if (team.escudo) {
+        await cloudinary.uploader.destroy(team.escudo); // Eliminar la imagen de Cloudinary
+      }
       await Team.findByIdAndDelete(team._id).session(session);
     }
 
@@ -85,7 +88,7 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
         }
         await Cancha.findByIdAndDelete(cancha._id).session(session);
       }
-      
+
       // Eliminar reservas asociadas a las canchas del complejo
       await Reserva.deleteMany({ canchaId: { $in: canchas.map(c => c._id) } }).session(session);
 
@@ -93,13 +96,13 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
       if (complejo.imagen) {
         await cloudinary.uploader.destroy(complejo.imagen);
       }
-
       await Complejo.findByIdAndDelete(complejo._id).session(session);
     }
 
     // Finalmente, eliminar el usuario
     await User.findByIdAndDelete(id).session(session);
 
+    // Cometer la transacción
     await session.commitTransaction();
     session.endSession();
 
@@ -111,6 +114,5 @@ router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false 
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 });
-
 
 module.exports = router;

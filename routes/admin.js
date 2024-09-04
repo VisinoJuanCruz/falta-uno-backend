@@ -40,7 +40,7 @@ router.put('/admin/users/:id/role', passport.authenticate('jwt', { session: fals
   }
 });
 
-/ Eliminar un usuario y todos los documentos relacionados
+// Eliminar un usuario y todos los documentos relacionados
 router.delete('/admin/users/:id', passport.authenticate('jwt', { session: false }), ensureSuperUser, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();

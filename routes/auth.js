@@ -1,3 +1,4 @@
+//Archivo: ./backend/
 const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
@@ -121,40 +122,7 @@ router.get('/profile', authenticateJWT, (req, res) => {
   res.json(userData);
 });
 
-// Ruta para crear un nuevo usuario
-router.post('/register', async (req, res) => {
-  try {
-    const { mail, name, whatsapp, password } = req.body;
 
-    const existingUser = await User.findOne({ mail });
-    if (existingUser) {
-      return res.status(400).json({ message: 'El usuario ya está registrado' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = jwt.sign({ mail }, process.env.JWT_SECRET, { expiresIn: '1d' });
-
-    const newUser = new User({
-      mail,
-      password: hashedPassword,
-      name,
-      whatsapp,
-      equiposCreados: [],
-      role: 'Usuario',
-      complejos: [],
-      isVerified: false,
-      verificationToken
-    });
-
-    await newUser.save();
-    await sendVerificationEmail(newUser.mail, verificationToken);
-
-    res.status(201).json({ message: 'Usuario creado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.' });
-  } catch (error) {
-    console.error('Error al registrar usuario:', error);
-    res.status(500).json({ error: 'Error interno del servidor al registrar usuario' });
-  }
-});
 
 router.post('/reset-password-request', async (req, res) => {
   const { mail } = req.body;

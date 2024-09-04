@@ -12,6 +12,7 @@ const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
 const complejosRoutes = require('./routes/complejos');
 const reservasRoutes = require('./routes/reservas');
+const adminRoutes = require('./routes/admin');
 
 require('./config/passport-config');
 
@@ -62,6 +63,7 @@ app.use('/api', teamRoutes);
 app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
+app.use('/api', adminRoutes);
 
 
 

@@ -59,25 +59,32 @@ router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
 
     let imagePublicId;
     if (req.file) {
-      imagePublicId = req.file.filename; // Usar el filename de la imagen subida
+      imagePublicId = req.file.path; // Usar el path de Cloudinary, no filename
     } else {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    const nuevoCancha = new Cancha({
+    // Crear el nuevo objeto de cancha
+    const nuevaCancha = new Cancha({
       nombre: formData.nombre,
       tipo: formData.tipo,
       precio: formData.precio,
       horaDeSubida: formData.horaDeSubida || null, // Nueva propiedad
       precioDeSubida: formData.precioDeSubida || null, // Nueva propiedad
-      imagen: imagePublicId, // Guardar el public_id de la imagen
-      complejo: formData.complejoId,
+      imagen: imagePublicId, // Guardar la URL de la imagen subida
+      complejoAlQuePertenece: formData.complejoAlQuePertenece, // ID del complejo
+      capacidadJugadores: formData.capacidadJugadores,
+      alAireLibre: formData.alAireLibre === 'true', // Asegurarse de que el valor booleano se maneje bien
+      materialPiso: formData.materialPiso
     });
 
-    const savedCancha = await nuevoCancha.save();
+    // Guardar la nueva cancha en la base de datos
+    const savedCancha = await nuevaCancha.save();
 
-    await Complejo.findByIdAndUpdate(formData.complejoId, { $push: { canchas: savedCancha._id } });
+    // Actualizar el complejo asociado para incluir la nueva cancha
+    await Complejo.findByIdAndUpdate(formData.complejoAlQuePertenece, { $push: { canchas: savedCancha._id } });
 
+    // Responder con la nueva cancha creada
     res.status(201).json(savedCancha);
   } catch (error) {
     console.error('Error al crear cancha:', error);

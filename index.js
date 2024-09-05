@@ -39,8 +39,6 @@ app.use('/images', express.static('images'));
 
 
 
-
-
 mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`);
 
 // Configuración de express-session
@@ -53,9 +51,6 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-
-
-
 app.use('/api', authRoutes);
 app.use('/api', playerRoutes);
 app.use('/api', userRoutes);
@@ -64,8 +59,6 @@ app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
 app.use('/api', adminRoutes);
-
-
 
 app.use(function (err, req, res, next) {
   console.log('This is the invalid field ->', err.field);

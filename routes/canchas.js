@@ -59,7 +59,7 @@ router.post('/canchas', upload.single('canchaImagen'), async (req, res) => {
 
     let imagePublicId;
     if (req.file) {
-      imagePublicId = req.file.path; // Usar el path de Cloudinary, no filename
+      imagePublicId = req.file.filename; // Usar el path de Cloudinary, no filename
     } else {
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }

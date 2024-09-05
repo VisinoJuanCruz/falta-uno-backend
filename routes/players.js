@@ -28,19 +28,20 @@ const upload = multer({ storage: storage });
 const router = express.Router();
 
 // Obtener todos los jugadores con paginación
+
 router.get('/players', async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 16;
+  const page = parseInt(req.query.page) || 1; // Página actual, por defecto la 1
+  const limit = 32; // Cambiado el límite a 32 jugadores por página
 
   try {
-    const count = await Player.countDocuments();
-    const totalPages = Math.ceil(count / limit);
-    const skip = (page - 1) * limit;
+    const count = await Player.countDocuments(); // Obtener el total de jugadores
+    const totalPages = Math.ceil(count / limit); // Total de páginas
+    const skip = (page - 1) * limit; // Calcular cuántos jugadores saltar
 
     const players = await Player.find()
-      .populate('equipo')
-      .skip(skip)
-      .limit(limit);
+      .populate('equipo') // Relacionar con el equipo
+      .skip(skip) // Saltar jugadores anteriores
+      .limit(limit); // Limitar el número de jugadores a devolver
 
     res.json({
       totalPlayers: count,
@@ -49,7 +50,7 @@ router.get('/players', async (req, res) => {
       players,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

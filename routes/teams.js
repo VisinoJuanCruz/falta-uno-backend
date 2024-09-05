@@ -1,4 +1,3 @@
-//Archivo: ./backend/routes/teams.js
 const express = require('express');
 const Team = require('../models/team');
 const Player = require('../models/player');
@@ -18,7 +17,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'teams', // Carpeta en Cloudinary donde se guardarán las imágenes
+    folder: 'teams',
     allowedFormats: ['jpg', 'jpeg', 'png', 'gif'],
   },
 });
@@ -51,12 +50,21 @@ router.get('/teams/:teamId', async (req, res) => {
 // Crear un nuevo equipo
 router.post('/teams', upload.single('escudo'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    let imagePublicId;
+
+    // Verifica si se seleccionó una imagen predefinida
+    if (req.body.selectedImage) {
+      imagePublicId = req.body.selectedImage; // Usar el public_id de la imagen predefinida
+    } else if (req.file) {
+      imagePublicId = req.file.filename; // Usar el filename de la imagen subida
+    } else {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
 
     const newTeam = new Team({
       jugadores: req.body.jugadores,
       nombre: req.body.nombre,
-      escudo: req.file.filename, // Usar el public_id de Cloudinary que se encuentra en req.file.filename
+      escudo: imagePublicId, // Guardar el public_id seleccionado o subido
       localidad: req.body.localidad,
       instagram: req.body.instagram,
       creadoPor: req.body.creadoPor,
@@ -76,18 +84,25 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
     const currentTeam = await Team.findById(req.params.teamId);
     if (!currentTeam) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-    const updateFields = {
+    let updateFields = {
       nombre: req.body.nombre,
       localidad: req.body.localidad,
       instagram: req.body.instagram,
     };
 
-    if (req.file) {
-      // Eliminar la imagen anterior de Cloudinary
-      await cloudinary.uploader.destroy(currentTeam.escudo);
-
-      // Usar el public_id de la nueva imagen
-      updateFields.escudo = req.file.filename;
+    // Verificar si se seleccionó una imagen predefinida
+    if (req.body.selectedImage) {
+      // No eliminar la imagen anterior si es predefinida
+      if (currentTeam.escudo && !currentTeam.escudo.startsWith('teams/predefined_')) {
+        await cloudinary.uploader.destroy(currentTeam.escudo); // Eliminar la imagen de Cloudinary
+      }
+      updateFields.escudo = req.body.selectedImage;
+    } else if (req.file) {
+      // Eliminar la imagen anterior si no es predefinida y se sube una nueva imagen
+      if (currentTeam.escudo && !currentTeam.escudo.startsWith('teams/predefined_')) {
+        await cloudinary.uploader.destroy(currentTeam.escudo); // Eliminar la imagen de Cloudinary
+      }
+      updateFields.escudo = req.file.filename; // Actualizar con el nuevo public_id de la imagen subida
     }
 
     const updatedTeam = await Team.findByIdAndUpdate(req.params.teamId, updateFields, { new: true });
@@ -96,7 +111,6 @@ router.put('/teams/:teamId', upload.single('escudo'), async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al editar equipo' });
   }
 });
-
 
 // Obtener los equipos de un usuario específico
 router.get('/teams/user/:userId', async (req, res) => {
@@ -112,24 +126,20 @@ router.get('/teams/user/:userId', async (req, res) => {
 router.delete('/teams/:teamId', async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId);
-    if (!team) {
-      return res.status(404).json({ error: 'Equipo no encontrado' });
-    }
+    if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-    // Eliminar la imagen del equipo (team.escudo) de Cloudinary
-    if (team.escudo) {
+    // Eliminar la imagen del equipo si no es predefinida
+    if (team.escudo && !team.escudo.startsWith('teams/predefined_')) {
       await cloudinary.uploader.destroy(team.escudo);
     }
 
     // Eliminar todos los jugadores asociados al equipo eliminado
     const players = await Player.find({ equipo: req.params.teamId });
-
     for (const player of players) {
-      // Solo eliminar la imagen del jugador de Cloudinary si no es una imagen predefinida
+      // Solo eliminar la imagen del jugador de Cloudinary si no es predefinida
       if (player.image && !player.image.startsWith('players/predefined_')) {
         await cloudinary.uploader.destroy(player.image);
       }
-
       // Eliminar el jugador de la base de datos
       await Player.findByIdAndDelete(player._id);
     }
@@ -142,10 +152,8 @@ router.delete('/teams/:teamId', async (req, res) => {
 
     res.status(200).json({ message: 'Equipo y jugadores eliminados exitosamente' });
   } catch (error) {
-    console.error('Error al eliminar equipo y jugadores:', error);
     res.status(500).json({ error: 'Error interno del servidor al eliminar equipo' });
   }
 });
-
 
 module.exports = router;

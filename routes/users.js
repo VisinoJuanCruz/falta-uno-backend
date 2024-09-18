@@ -41,6 +41,27 @@ router.get('/users/:userId', async (req, res) => {
   }
 });
 
+// Nueva ruta en el backend para devolver solo el nombre del usuario
+router.get('/users/:userId/name', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Solo seleccionamos el campo "name"
+    const user = await User.findById(userId).select('name');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Devolvemos solo el nombre del usuario
+    res.json({ name: user.name });
+  } catch (error) {
+    console.error('Error al obtener el nombre del usuario por ID:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 // Crear un nuevo usuario
 router.post('/users', async (req, res) => {
   try {

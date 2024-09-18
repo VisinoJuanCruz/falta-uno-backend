@@ -26,10 +26,24 @@ const upload = multer({ storage });
 
 const router = express.Router();
 
-// Obtener todos los equipos
+// Obtener todos los equipos, priorizando los creados por el usuario loggeado si se proporciona el userId
 router.get('/teams', async (req, res) => {
+  const { userId } = req.query; // Obtenemos el userId de los parámetros de consulta
+
   try {
-    const teams = await Team.find();
+    let teams;
+    if (userId) {
+      // Si hay un usuario loggeado, primero obtenemos los equipos creados por ese usuario
+      const userTeams = await Team.find({ creadoPor: userId }); // Equipos creados por el usuario
+      const otherTeams = await Team.find({ creadoPor: { $ne: userId } }); // Equipos creados por otros usuarios
+
+      // Concatenamos los equipos del usuario con los otros equipos
+      teams = [...userTeams, ...otherTeams];
+    } else {
+      // Si no hay usuario loggeado, obtenemos todos los equipos sin filtrar
+      teams = await Team.find();
+    }
+
     res.json(teams);
   } catch (error) {
     res.status(500).json({ error: 'Error interno del servidor' });

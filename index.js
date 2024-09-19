@@ -20,17 +20,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-  origin: '*',
+  origin: ['https://www.somosfulbo.com', 'https://somosfulbo.com', 'http://localhost:5173'],
   credentials: true,
 }));
 
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Origin', ['https://www.somosfulbo.com', 'https://somosfulbo.com', 'http://localhost:5173']);
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   next();
 });
+
 
 
 app.use(express.json());

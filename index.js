@@ -19,21 +19,11 @@ require('./config/passport-config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configuración de CORS
 app.use(cors({
   origin: ['https://www.somosfulbo.com', 'https://somosfulbo.com', 'http://localhost:5173'],
   credentials: true,
 }));
-
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', ['https://www.somosfulbo.com', 'https://somosfulbo.com', 'http://localhost:5173']);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  next();
-});
-
-
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -62,6 +52,7 @@ app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
 app.use('/api', adminRoutes);
 
+// Middleware de manejo de errores
 app.use(function (err, req, res, next) {
   console.log('This is the invalid field ->', err.field);
   next(err);

@@ -30,18 +30,31 @@ const router = express.Router();
 // Obtener todos los jugadores con paginación
 
 router.get('/players', async (req, res) => {
-  const page = parseInt(req.query.page) || 1; // Página actual, por defecto la 1
-  const limit = 32; // Cambiado el límite a 32 jugadores por página
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 32;
+  const userId = req.query.userId; // Obtener el userId de la query string
+
+  const skip = (page - 1) * limit;
 
   try {
-    const count = await Player.countDocuments(); // Obtener el total de jugadores
-    const totalPages = Math.ceil(count / limit); // Total de páginas
-    const skip = (page - 1) * limit; // Calcular cuántos jugadores saltar
+    let query = {};
 
-    const players = await Player.find()
+    if (userId) {
+      // Si hay un userId, buscamos los equipos creados por este usuario
+      const teams = await Team.find({ creadoPor: userId }).select('_id');
+      const teamIds = teams.map(team => team._id);
+
+      // Filtramos jugadores cuyos equipos están en los equipos creados por el usuario
+      query = { equipo: { $in: teamIds } };
+    }
+
+    const count = await Player.countDocuments(query); // Contamos solo los jugadores que cumplen el filtro
+    const totalPages = Math.ceil(count / limit);
+
+    const players = await Player.find(query)
       .populate('equipo') // Relacionar con el equipo
-      .skip(skip) // Saltar jugadores anteriores
-      .limit(limit); // Limitar el número de jugadores a devolver
+      .skip(skip)
+      .limit(limit);
 
     res.json({
       totalPlayers: count,
@@ -53,6 +66,7 @@ router.get('/players', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 router.post('/players', upload.single('playerImage'), async (req, res) => {
   try {

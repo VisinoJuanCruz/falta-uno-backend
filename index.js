@@ -31,7 +31,7 @@ app.use('/images', express.static('images'));
 
 
 
-mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/develop`);
+mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`);
 
 // Configuración de express-session
 app.use(session({

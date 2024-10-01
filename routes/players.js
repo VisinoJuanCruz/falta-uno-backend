@@ -38,6 +38,8 @@ router.get('/players', async (req, res) => {
 
   try {
     let query = {};
+    let players = [];
+    let totalPlayers = 0;
 
     if (userId) {
       // Si hay un userId, buscamos los equipos creados por este usuario
@@ -45,19 +47,67 @@ router.get('/players', async (req, res) => {
       const teamIds = teams.map(team => team._id);
 
       // Filtramos jugadores cuyos equipos están en los equipos creados por el usuario
-      query = { equipo: { $in: teamIds } };
+      const userPlayers = await Player.find({ equipo: { $in: teamIds } })
+        .populate('equipo') // Relacionar con el equipo
+        .limit(limit)
+        .skip(skip);
+
+      const nonUserPlayers = await Player.find({ equipo: { $nin: teamIds } })
+        .populate('equipo') // Relacionar con el equipo
+        .limit(limit - userPlayers.length) // Limitar a la cantidad restante
+        .skip(skip);
+
+      players = [...userPlayers, ...nonUserPlayers]; // Priorizar los jugadores del usuario
+      totalPlayers = await Player.countDocuments(); // Contar el total de jugadores
+    } else {
+      // Si no hay un userId, obtenemos todos los jugadores en su orden original
+      totalPlayers = await Player.countDocuments();
+      players = await Player.find(query)
+        .populate('equipo') // Relacionar con el equipo
+        .skip(skip)
+        .limit(limit);
     }
 
-    const count = await Player.countDocuments(query); // Contamos solo los jugadores que cumplen el filtro
-    const totalPages = Math.ceil(count / limit);
-
-    const players = await Player.find(query)
-      .populate('equipo') // Relacionar con el equipo
-      .skip(skip)
-      .limit(limit);
+    const totalPages = Math.ceil(totalPlayers / limit);
 
     res.json({
-      totalPlayers: count,
+      totalPlayers,
+      totalPages,
+      currentPage: page,
+      players,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/players/user', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 32;
+  const userId = req.query.userId; // Obtener el userId de la query string
+
+  const skip = (page - 1) * limit;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'Se requiere un userId.' });
+  }
+
+  try {
+    // Buscamos los equipos creados por este usuario
+    const teams = await Team.find({ creadoPor: userId }).select('_id');
+    const teamIds = teams.map(team => team._id);
+
+    // Filtramos los jugadores cuyos equipos están en los equipos creados por el usuario
+    const players = await Player.find({ equipo: { $in: teamIds } })
+      .populate('equipo') // Relacionar con el equipo
+      .limit(limit)
+      .skip(skip);
+
+    const totalPlayers = await Player.countDocuments({ equipo: { $in: teamIds } });
+    const totalPages = Math.ceil(totalPlayers / limit);
+
+    res.json({
+      totalPlayers,
       totalPages,
       currentPage: page,
       players,

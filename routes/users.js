@@ -42,22 +42,17 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // Nueva ruta en el backend para devolver solo el nombre del usuario
-router.get('/users/:userId/name', async (req, res) => {
+router.get('/users/:userId/comunication-info', async (req, res) => {
   const { userId } = req.params;
 
   try {
-    // Solo seleccionamos el campo "name"
-    const user = await User.findById(userId).select('name');
-    
+    const user = await User.findById(userId).select('name whatsapp habilitarWhatsapp');
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
-
-    // Devolvemos solo el nombre del usuario
-    res.json({ name: user.name });
+    res.json(user);
   } catch (error) {
-    console.error('Error al obtener el nombre del usuario por ID:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ message: 'Error al obtener el usuario' });
   }
 });
 

@@ -8,6 +8,7 @@ const reservaSchema = new mongoose.Schema({
   precio: { type: Number, required: true },
   reservado: { type: Boolean, default: true },
   canchaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cancha' },
+  reservante: { type: String, required: true },  // Nuevo campo para el nombre
 });
 
 reservaSchema.plugin(mongoosePaginate);

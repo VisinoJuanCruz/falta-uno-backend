@@ -55,6 +55,41 @@ router.get('/users/:userId/comunication-info', async (req, res) => {
     res.status(500).json({ message: 'Error al obtener el usuario' });
   }
 });
+// Actualizar los datos de un usuario
+router.put('/users/:userId', passport.authenticate('jwt', { session: false }), async (req, res) => {
+  const { oldPassword, newPassword, name, whatsapp, habilitarWhatsapp } = req.body;
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Si se proporciona oldPassword, verificar si es correcta
+    if (oldPassword && newPassword) {
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'La contraseña actual es incorrecta.' });
+      }
+
+      // Hashear y actualizar con la nueva contraseña
+      user.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    // Actualizar otros datos del usuario
+    user.name = name;
+    user.whatsapp = whatsapp;
+    user.habilitarWhatsapp = habilitarWhatsapp;
+
+    await user.save();
+    res.json(user);
+  } catch (error) {
+    console.error('Error al actualizar el usuario:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 
 // Crear un nuevo usuario

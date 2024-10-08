@@ -39,52 +39,56 @@ router.get('/reservas', async (req, res) => {
 
 
 
-// Crear una nueva reserva o cambiar el estado de una reserva existente
-router.post('/reservas', async (req, res) => {
-  const { canchaId,  precio } = req.body;
-  const horaInicio = new Date(req.body.horaInicio);
-if (isNaN(horaInicio.getTime())) {
-  return res.status(400).json({ message: 'La hora de inicio proporcionada no es válida.' });
-}
 
-console.log(canchaId,horaInicio,precio)
-    const horaFin = new Date(horaInicio.getTime() + 3600000)
-    try {
-      // Verificar si ya hay una reserva para este horario y esta cancha
-      
-      const existingReserva = await Reserva.findOne({
-        canchaId,
-        horaInicio
-      });
-      
-      
+router.post('/reservas', async (req, res) => {
+  const { canchaId, precio, reservante, cancelacion } = req.body;  // Añadimos cancelacion
+  const horaInicio = new Date(req.body.horaInicio);
+
+  if (isNaN(horaInicio.getTime())) {
+    return res.status(400).json({ message: 'La hora de inicio proporcionada no es válida.' });
+  }
+
+  try {
+    // Verificar si ya hay una reserva para este horario y esta cancha
+    const existingReserva = await Reserva.findOne({
+      canchaId,
+      horaInicio
+    });
+
     if (existingReserva) {
-      
-      // Si la reserva existe, cambiar su estado de reservado
-      existingReserva.reservado = !existingReserva.reservado;
+      // Si es una cancelación, no requerimos precio ni reservante
+      if (cancelacion) {
+        existingReserva.reservado = false;  // Marcar como no reservado
+        const updatedReserva = await existingReserva.save();
+        return res.status(200).json(updatedReserva);
+      }
+
+      // Si no es cancelación, requerimos actualizar precio y reservante
       existingReserva.precio = precio;
+      existingReserva.reservante = reservante;
+      existingReserva.reservado = true;
       const updatedReserva = await existingReserva.save();
       return res.status(200).json(updatedReserva);
     }
-    
-    
-    // Si no existe una reserva, crear una nueva
+
+    // Crear una nueva reserva (solo cuando no existe)
     const reserva = new Reserva({
       canchaId,
       horaInicio,
       horaFin: new Date(horaInicio.getTime() + 3600000), // Sumar una hora en milisegundos
       precio,
-      reservado: true // Marcar como reservado al crear una nueva reserva
+      reservante,
+      reservado: true,
     });
-    
+
     const savedReserva = await reserva.save();
     await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
     res.status(201).json(savedReserva);
-    
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
+
 
 // Actualizar una reserva
 router.put('/reservas/:id', async (req, res) => {

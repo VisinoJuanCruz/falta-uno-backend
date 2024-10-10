@@ -43,6 +43,8 @@ router.get('/reservas', async (req, res) => {
 router.post('/reservas', async (req, res) => {
   const { canchaId, precio, reservante, cancelacion } = req.body;  // Añadimos cancelacion
   const horaInicio = new Date(req.body.horaInicio);
+// Backend (en el controlador o donde devuelves la reserva)
+
 
   if (isNaN(horaInicio.getTime())) {
     return res.status(400).json({ message: 'La hora de inicio proporcionada no es válida.' });
@@ -80,9 +82,13 @@ router.post('/reservas', async (req, res) => {
       reservante,
       reservado: true,
     });
-
+    console.log("Hora de inicio en el backend (UTC):", reserva.horaInicio);  // Aquí debería estar en UTC
     const savedReserva = await reserva.save();
     await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
+    // Backend (en el controlador o donde devuelves la reserva)
+
+
+
     res.status(201).json(savedReserva);
   } catch (err) {
     res.status(400).json({ message: err.message });

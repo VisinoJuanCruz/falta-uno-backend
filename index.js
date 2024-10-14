@@ -12,6 +12,7 @@ const teamRoutes = require('./routes/teams');
 const canchasRoutes = require('./routes/canchas');
 const complejosRoutes = require('./routes/complejos');
 const reservasRoutes = require('./routes/reservas');
+const cumpleReservas = require('./routes/cumpleReservas')
 const adminRoutes = require('./routes/admin');
 
 require('./config/passport-config');
@@ -51,6 +52,7 @@ app.use('/api', canchasRoutes);
 app.use('/api', complejosRoutes);
 app.use('/api', reservasRoutes);
 app.use('/api', adminRoutes);
+app.use('/api', cumpleReservas)
 
 // Middleware de manejo de errores
 app.use(function (err, req, res, next) {

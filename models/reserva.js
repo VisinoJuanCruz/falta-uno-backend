@@ -3,9 +3,8 @@ const mongoose = require('mongoose');
 const mongoosePaginate = require('mongoose-paginate-v2');
 
 const reservaSchema = new mongoose.Schema({
-  tipoReserva: { type: String, enum: ['partido', 'cumpleaños'], required: true },
+ 
   canchaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cancha', required: false },
-  complejoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Complejo', required: false },
   horaInicio: { type: Date, required: true },
   horaFin: { type: Date, required: true },
   precio: { type: Number, required: true },

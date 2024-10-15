@@ -41,42 +41,29 @@ router.get('/reservas', async (req, res) => {
 
 
 router.post('/reservas', async (req, res) => {
-  const { canchaId, complejoId, precio, reservante, horaInicio, horaFin, cancelacion, tipoReserva } = req.body;
-  console.log(cancelacion)
-  const inicio = new Date(horaInicio);
-    // Esto debería mostrar la función del modelo si está bien importado
+  const { canchaId, precio, reservante, cancelacion } = req.body;  // Añadimos cancelacion
+  const horaInicio = new Date(req.body.horaInicio);
 
-  if (isNaN(inicio.getTime())) {
+  if (isNaN(horaInicio.getTime())) {
     return res.status(400).json({ message: 'La hora de inicio proporcionada no es válida.' });
   }
-   
 
   try {
-    let existingReserva;
-
-    if (tipoReserva === 'partido') {
-      // Verificar si ya hay una reserva para este horario y esta cancha (solo para partidos)
-      existingReserva = await Reserva.findOne({
-        canchaId,
-        horaInicio: inicio
-      });
-    } else if (tipoReserva === 'cumpleaños') {
-      // Verificar si ya hay una reserva para este horario y este complejo (solo para cumpleaños)
-      existingReserva = await Reserva.findOne({
-        complejoId,
-        horaInicio: inicio
-      });
-    }
+    // Verificar si ya hay una reserva para este horario y esta cancha
+    const existingReserva = await Reserva.findOne({
+      canchaId,
+      horaInicio
+    });
 
     if (existingReserva) {
-      // Si es una cancelación
+      // Si es una cancelación, no requerimos precio ni reservante
       if (cancelacion) {
         existingReserva.reservado = false;  // Marcar como no reservado
         const updatedReserva = await existingReserva.save();
         return res.status(200).json(updatedReserva);
       }
 
-      // Si no es cancelación, actualizar precio y reservante
+      // Si no es cancelación, requerimos actualizar precio y reservante
       existingReserva.precio = precio;
       existingReserva.reservante = reservante;
       existingReserva.reservado = true;
@@ -84,49 +71,23 @@ router.post('/reservas', async (req, res) => {
       return res.status(200).json(updatedReserva);
     }
 
-    // Crear una nueva reserva si no existe una reserva en ese horario
+    // Crear una nueva reserva (solo cuando no existe)
+    const reserva = new Reserva({
+      canchaId,
+      horaInicio,
+      horaFin: new Date(horaInicio.getTime() + 3600000), // Sumar una hora en milisegundos
+      precio,
+      reservante,
+      reservado: true,
+    });
 
-    let nuevaReserva;
-
-    if (tipoReserva === 'partido') {
-      nuevaReserva = new Reserva({
-        tipoReserva,
-        canchaId,
-        horaInicio: inicio,
-        horaFin: new Date(inicio.getTime() + 3600000), // Sumar una hora en milisegundos para los partidos
-        precio,
-        reservante,
-        reservado: true,
-      });
-
-      const savedReserva = await nuevaReserva.save();
-      await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
-      return res.status(201).json(savedReserva);
-      
-    } else if (tipoReserva === 'cumpleaños') {
-      nuevaReserva = new Reserva({
-        tipoReserva,
-        complejoId,
-        horaInicio: inicio,
-        horaFin: new Date(horaFin),  // Definir la duración según la selección del usuario
-        precio,
-        reservante,
-        reservado: true,
-      });
-
-      const savedReserva = await nuevaReserva.save();
-      await Complejo.findByIdAndUpdate(complejoId, { $push: { reservas: savedReserva._id } });
-      return res.status(201).json(savedReserva);
-    }
-
-    // En caso de que el tipo de reserva no sea válido
-    return res.status(400).json({ message: 'Tipo de reserva no válido.' });
+    const savedReserva = await reserva.save();
+    await Cancha.findByIdAndUpdate(canchaId, { $push: { reservas: savedReserva._id } });
+    res.status(201).json(savedReserva);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
-
-router.get('/complejoId')
 
 
 // Actualizar una reserva

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const CumpleReserva = require('../models/cumpleReserva'); // Asegúrate de que este sea el nombre correcto de tu modelo
 const Complejo = require('../models/complejo'); // Modelo para complejos si es necesario
-
+const moment = require('moment-timezone');
 // Obtener todas las reservas de cumple por complejoId
 router.get('/cumple/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
@@ -16,12 +16,24 @@ router.get('/cumple/:complejoId', async (req, res) => {
   }
 });
 
+
+
+
 // Crear una nueva reserva de cumple
 router.post('/cumple', async (req, res) => {
   const { complejoId, precio, reservante, horaInicio, horaFin, servicios, cantidadInvitados, decoraciones } = req.body;
 
+  console.log(horaInicio, horaFin); // Muestra las fechas recibidas
+
+  // Usar directamente los valores de horaInicio y horaFin
   const inicio = new Date(horaInicio);
   const fin = new Date(horaFin);
+
+  // Restar 3 horas (3 horas * 60 minutos * 60 segundos * 1000 milisegundos)
+  inicio.setHours(inicio.getHours() - 3);
+  fin.setHours(fin.getHours() - 3);
+
+  console.log(inicio, fin); // Muestra las fechas convertidas
 
   if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
     return res.status(400).json({ message: 'Las horas proporcionadas no son válidas.' });
@@ -41,8 +53,8 @@ router.post('/cumple', async (req, res) => {
 
     const nuevaReserva = new CumpleReserva({
       complejoId,
-      horaInicio: inicio,
-      horaFin: fin,
+      horaInicio: inicio, // Almacena la fecha ajustada
+      horaFin: fin, // Almacena la fecha ajustada
       precio,
       reservante,
       servicios,

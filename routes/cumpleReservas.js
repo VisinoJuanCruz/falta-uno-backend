@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const CumpleReserva = require('../models/cumpleReserva'); // Asegúrate de que este sea el nombre correcto de tu modelo
 const Complejo = require('../models/complejo'); // Modelo para complejos si es necesario
-const moment = require('moment-timezone');
+require('dotenv').config();
+
 // Obtener todas las reservas de cumple por complejoId
 router.get('/cumple/:complejoId', async (req, res) => {
   const { complejoId } = req.params;
@@ -25,14 +26,16 @@ router.post('/cumple', async (req, res) => {
 
   console.log(horaInicio, horaFin); // Muestra las fechas recibidas
 
-  // Usar directamente los valores de horaInicio y horaFin
-  const inicio = new Date(horaInicio);
-  const fin = new Date(horaFin);
-
-  // Restar 3 horas (3 horas * 60 minutos * 60 segundos * 1000 milisegundos)
-  inicio.setHours(inicio.getHours() - 3);
-  fin.setHours(fin.getHours() - 3);
-
+  
+ // Usar directamente los valores de horaInicio y horaFin
+ const inicio = new Date(horaInicio);
+ const fin = new Date(horaFin);
+ console.log('NODE_ENV:', process.env.NODE_ENV);
+ // Restar 3 horas solo si estamos en desarrollo
+ if (process.env.NODE_ENV === 'development') {
+   inicio.setHours(inicio.getHours() - 3);
+   fin.setHours(fin.getHours() - 3);
+ }
   console.log(inicio, fin); // Muestra las fechas convertidas
 
   if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {

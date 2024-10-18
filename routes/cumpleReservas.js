@@ -1,22 +1,43 @@
 const express = require('express');
 const router = express.Router();
-const CumpleReserva = require('../models/cumpleReserva'); // Asegúrate de que este sea el nombre correcto de tu modelo
-const Complejo = require('../models/complejo'); // Modelo para complejos si es necesario
-require('dotenv').config();
+const Cumple = require('../models/cumpleReserva'); // Asumiendo que tienes un modelo de Cumple similar al de Reserva
+const Complejo = require('../models/complejo')
 
-// Obtener todas las reservas de cumple por complejoId
+// Obtener todos los cumpleaños de un complejo
 router.get('/cumple/:complejoId', async (req, res) => {
-  const { complejoId } = req.params;
-
   try {
-    const cumpleañosReservas = await CumpleReserva.find({ complejoId });
-    res.json(cumpleañosReservas);
+    const { complejoId } = req.params;
+    const { fecha, page = 1, limit = 50 } = req.query;
+    const query = { }; // Filtrar por complejoId
+    
+    
+    // Si hay un filtro de fecha, lo aplicamos similar a como hicimos con las reservas
+    if (fecha) {
+      const fechaFiltro = new Date(fecha);
+      const fechaInicio = new Date(fechaFiltro.getFullYear(), fechaFiltro.getMonth(), fechaFiltro.getDate());
+      const fechaFin = new Date(fechaInicio);
+      fechaFin.setDate(fechaInicio.getDate() + 1); // El filtro es para el día completo
+      query.horaInicio = { $gte: fechaInicio, $lt: fechaFin };
+    }
+    
+    if(complejoId) {
+      query.complejoId = complejoId
+    }
+
+    const options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+    };
+
+    // Obtenemos los cumpleaños con la paginación
+    const cumpleanos = await Cumple.paginate(query, options);
+    console.log(cumpleanos)
+    res.json(cumpleanos);
   } catch (error) {
-    console.error('Error al obtener las reservas de cumple:', error);
+    console.error('Error al obtener los cumpleaños:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 
 
 
@@ -44,7 +65,7 @@ router.post('/cumple', async (req, res) => {
 
   try {
     // Verificar si ya hay una reserva de cumple para el mismo horario y complejo
-    const existingReserva = await CumpleReserva.findOne({
+    const existingReserva = await Cumple.findOne({
       complejoId,
       horaInicio: { $lt: fin }, // Chequear si el inicio de la nueva reserva se solapa con una existente
       horaFin: { $gt: inicio }, // Chequear si el fin de la nueva reserva se solapa con una existente
@@ -54,7 +75,7 @@ router.post('/cumple', async (req, res) => {
       return res.status(400).json({ message: 'Ya existe una reserva para este horario.' });
     }
 
-    const nuevaReserva = new CumpleReserva({
+    const nuevaReserva = new Cumple({
       complejoId,
       horaInicio: inicio, // Almacena la fecha ajustada
       horaFin: fin, // Almacena la fecha ajustada
@@ -79,7 +100,7 @@ router.put('/cumple/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const reserva = await CumpleReserva.findById(id);
+    const reserva = await Cumple.findById(id);
     if (!reserva) {
       return res.status(404).json({ message: 'Reserva no encontrada' });
     }
@@ -101,7 +122,7 @@ router.delete('/cumple/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const deletedReserva = await CumpleReserva.findByIdAndRemove(id);
+    const deletedReserva = await Cumple.findByIdAndRemove(id);
     if (!deletedReserva) {
       return res.status(404).json({ message: 'Reserva no encontrada' });
     }

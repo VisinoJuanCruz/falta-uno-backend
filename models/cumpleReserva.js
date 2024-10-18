@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const mongoosePaginate = require('mongoose-paginate-v2');
 
 const cumpleReservaSchema = new mongoose.Schema({
   complejoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Complejo', required: true },
@@ -11,6 +12,9 @@ const cumpleReservaSchema = new mongoose.Schema({
   decoraciones: { type: [String], default: [] }, // Opciones de decoraciones específicas
 });
 
+
+cumpleReservaSchema.plugin(mongoosePaginate);
 const CumpleReserva = mongoose.model('CumpleReserva', cumpleReservaSchema);
+
 
 module.exports = CumpleReserva;

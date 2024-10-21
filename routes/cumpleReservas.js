@@ -64,8 +64,7 @@ router.get('/cumple-by-id/:cumpleId', async (req, res) => {
 router.post('/cumple', async (req, res) => {
   const { complejoId, precio, reservante, horaInicio, horaFin, servicios, cantidadInvitados, decoraciones, fecha } = req.body;
 
-  console.log(horaInicio, horaFin); // Muestra las fechas recibidas
-
+ 
   // Usar directamente los valores de horaInicio y horaFin
   const inicio = new Date(horaInicio);
   const fin = new Date(horaFin);
@@ -127,69 +126,72 @@ router.post('/cumple', async (req, res) => {
   }
 });
 
-// Actualizar una reserva de cumple
-router.put('/cumple/:id', async (req, res) => {
-  const { id } = req.params;
-  const { horaInicio, horaFin, fecha } = req.body;
+// Editar una reserva de cumple existente
+router.put('/cumple/:cumpleId', async (req, res) => {
+  const { cumpleId } = req.params;
+  const { complejoId, precio, reservante, horaInicio, horaFin, servicios, cantidadInvitados, decoraciones, fecha } = req.body;
+
+  // Convertir las fechas a objetos Date
+  const inicio = new Date(horaInicio);
+  const fin = new Date(horaFin);
+
+  // Restar 3 horas solo si estamos en desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    inicio.setHours(inicio.getHours() - 3);
+    fin.setHours(fin.getHours() - 3);
+  }
+
+  if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+    return res.status(400).json({ message: 'Las horas proporcionadas no son válidas.' });
+  }
 
   try {
-    const reserva = await CumpleReserva.findById(id);
-    if (!reserva) {
-      return res.status(404).json({ message: 'Reserva no encontrada' });
+    // Verificar si la reserva de cumpleaños existe
+    const cumpleReserva = await CumpleReserva.findById(cumpleId);
+    if (!cumpleReserva) {
+      return res.status(404).json({ message: 'Reserva de cumpleaños no encontrada.' });
     }
 
-    // Si se van a cambiar la horaInicio o la horaFin, verifica los conflictos
-    if (horaInicio && horaFin && fecha) {
-      const inicio = new Date(horaInicio);
-      const fin = new Date(horaFin);
+    // Verificar si hay otras reservas o cumpleaños en conflicto con el horario actualizado
+    const conflictingReservations = await Reserva.find({
+      fecha: fecha,
+      $or: [
+        { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con una reserva de cancha
+      ],
+      _id: { $ne: cumpleId } // Excluir la reserva que estamos editando
+    });
 
-      // Restar 3 horas solo si estamos en desarrollo
-      if (process.env.NODE_ENV === 'development') {
-        inicio.setHours(inicio.getHours() - 3);
-        fin.setHours(fin.getHours() - 3);
-      }
+    const conflictingCumpleReservas = await CumpleReserva.find({
+      fecha: fecha,
+      $or: [
+        { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con otra reserva de cumpleaños
+      ],
+      _id: { $ne: cumpleId } // Excluir la reserva que estamos editando
+    });
 
-      if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
-        return res.status(400).json({ message: 'Las horas proporcionadas no son válidas.' });
-      }
-
-      // Verificar conflictos con otras reservas de cancha o cumpleaños en el mismo rango de tiempo
-      const conflictingCanchaReservations = await CanchaReserva.find({
-        fecha: fecha,
-        _id: { $ne: id }, // Excluir la reserva actual
-        $or: [
-          { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con una reserva de cancha
-        ]
+    if (conflictingReservations.length > 0 || conflictingCumpleReservas.length > 0) {
+      return res.status(400).json({
+        message: 'Ya existe una reserva en el rango de tiempo seleccionado.'
       });
-
-      const conflictingCumpleReservas = await CumpleReserva.find({
-        fecha: fecha,
-        _id: { $ne: id }, // Excluir la reserva actual
-        $or: [
-          { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con otra reserva de cumpleaños
-        ]
-      });
-
-      if (conflictingCanchaReservations.length > 0 || conflictingCumpleReservas.length > 0) {
-        return res.status(400).json({
-          message: 'Ya existe una reserva en el rango de tiempo seleccionado.'
-        });
-      }
-
-      // Si no hay conflictos, actualiza los horarios de la reserva
-      reserva.horaInicio = inicio;
-      reserva.horaFin = fin;
     }
 
-    // Actualiza los demás campos si están en el body
-    Object.assign(reserva, req.body);
-    const updatedReserva = await reserva.save();
+    // Actualizar los datos de la reserva
+    cumpleReserva.complejoId = complejoId;
+    cumpleReserva.horaInicio = inicio;
+    cumpleReserva.horaFin = fin;
+    cumpleReserva.precio = precio;
+    cumpleReserva.reservante = reservante;
+    cumpleReserva.servicios = servicios;
+    cumpleReserva.cantidadInvitados = cantidadInvitados;
+    cumpleReserva.decoraciones = decoraciones;
 
-    res.json(updatedReserva);
-    console.log("UPDATE RESERVA cumple:", updatedReserva);
+    // Guardar los cambios
+    const updatedCumple = await cumpleReserva.save();
+    return res.status(200).json(updatedCumple);
+
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Error al editar la reserva de cumple:', err);
+    res.status(500).json({ message: 'Error al editar la reserva. Inténtalo de nuevo.' });
   }
 });
 

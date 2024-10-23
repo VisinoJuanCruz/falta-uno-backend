@@ -308,6 +308,7 @@ async function buscarComplejosConCanchaLibre(startDate) {
           telefono: { $first: '$telefono' },
           whatsapp: { $first: '$whatsapp' },
           instagram: { $first: '$instagram' },
+          userId: { $first: '$userId'},
           imagen: { $first: '$imagen' },
           canchas: {
             $push: {

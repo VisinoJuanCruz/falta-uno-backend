@@ -64,7 +64,6 @@ router.get('/cumple-by-id/:cumpleId', async (req, res) => {
 router.post('/cumple', async (req, res) => {
   const { complejoId, precio, reservante, horaInicio, horaFin, servicios, cantidadInvitados, decoraciones, fecha } = req.body;
 
- 
   // Usar directamente los valores de horaInicio y horaFin
   const inicio = new Date(horaInicio);
   const fin = new Date(horaFin);
@@ -82,24 +81,28 @@ router.post('/cumple', async (req, res) => {
   }
 
   try {
-    // Verificar si ya hay una reserva de cumple o cancha en conflicto con el mismo horario
+    // Verificar si ya hay una reserva de cancha en el mismo complejo deportivo con el mismo horario
     const conflictingReservations = await Reserva.find({
+      complejoId: complejoId, // Filtrar por el complejo correspondiente
       fecha: fecha,
       $or: [
         { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con una reserva de cancha
       ]
     });
 
+    // Verificar si ya hay una reserva de cumpleaños en el mismo complejo deportivo con el mismo horario
     const conflictingCumpleReservas = await CumpleReserva.find({
+      complejoId: complejoId, // Filtrar por el complejo correspondiente
       fecha: fecha,
       $or: [
         { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con una reserva de cumpleaños
       ]
     });
 
+    // Verificar si hay conflictos con las reservas existentes
     if (conflictingReservations.length > 0 || conflictingCumpleReservas.length > 0) {
       return res.status(400).json({
-        message: 'Ya existe una reserva en el rango de tiempo seleccionado.'
+        message: 'Ya existe una reserva en el rango de tiempo seleccionado en este complejo.'
       });
     }
 
@@ -152,8 +155,9 @@ router.put('/cumple/:cumpleId', async (req, res) => {
       return res.status(404).json({ message: 'Reserva de cumpleaños no encontrada.' });
     }
 
-    // Verificar si hay otras reservas o cumpleaños en conflicto con el horario actualizado
+    // Verificar si hay otras reservas de canchas o cumpleaños en conflicto dentro del mismo complejo
     const conflictingReservations = await Reserva.find({
+      complejoId: cumpleReserva.complejoId, // Verificar solo en el mismo complejo
       fecha: fecha,
       $or: [
         { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con una reserva de cancha
@@ -162,6 +166,7 @@ router.put('/cumple/:cumpleId', async (req, res) => {
     });
 
     const conflictingCumpleReservas = await CumpleReserva.find({
+      complejoId: cumpleReserva.complejoId, // Verificar solo en el mismo complejo
       fecha: fecha,
       $or: [
         { horaInicio: { $lt: fin }, horaFin: { $gt: inicio } } // Si el horario se solapa con otra reserva de cumpleaños
@@ -171,7 +176,7 @@ router.put('/cumple/:cumpleId', async (req, res) => {
 
     if (conflictingReservations.length > 0 || conflictingCumpleReservas.length > 0) {
       return res.status(400).json({
-        message: 'Ya existe una reserva en el rango de tiempo seleccionado.'
+        message: 'Ya existe una reserva en el rango de tiempo seleccionado para este complejo.'
       });
     }
 
@@ -194,6 +199,7 @@ router.put('/cumple/:cumpleId', async (req, res) => {
     res.status(500).json({ message: 'Error al editar la reserva. Inténtalo de nuevo.' });
   }
 });
+
 
 // Eliminar una reserva de cumple
 router.delete('/cumple/:id', async (req, res) => {

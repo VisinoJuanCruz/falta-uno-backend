@@ -6,7 +6,12 @@ const playerSchema = new mongoose.Schema({
   puntajeAtacando: { type: Number, required: true },
   puntajeDefendiendo: { type: Number, required: true },
   puntajeAtajando: { type: Number, required: true },
-  equipo: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', required: true }, 
+  equipo: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', required: true },
+  goles: { type: Number, default: 0 },             // Goles totales del jugador
+  partidosJugados: { type: Number, default: 0 },   // Número de partidos jugados
+  partidosGanados: { type: Number, default: 0 },   // Número de partidos ganados
+  partidosPerdidos: { type: Number, default: 0 },  // Número de partidos perdidos
+  partidosEmpatados: { type: Number, default: 0 }  // Número de partidos empatados
 });
 
 const Player = mongoose.model('Player', playerSchema);

@@ -7,6 +7,7 @@ const teamSchema = new mongoose.Schema({
   localidad: { type: String, required: true },
   instagram: { type: String },
   nombre: { type: String, required: true },
+  matches: [{type: mongoose.Schema.Types.ObjectId, ref: 'Match'}]
 });
 
 const Team = mongoose.model('Team', teamSchema);

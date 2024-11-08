@@ -28,6 +28,7 @@ const router = express.Router();
 
 // Obtener todos los equipos, priorizando los creados por el usuario loggeado si se proporciona el userId
 router.get('/teams', async (req, res) => {
+  
   const { userId } = req.query; // Obtenemos el userId de los parámetros de consulta
 
   try {
@@ -58,6 +59,21 @@ router.get('/teams/:teamId', async (req, res) => {
     res.json(team);
   } catch (error) {
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+
+// Obtener solo el nombre y el ID de todos los equipos
+router.get('/teamsnames', async (req, res) => {
+  
+  try {
+    const teamNames = await Team.find({},'_id nombre'); // Cambia 'name' a 'nombre'
+   
+    res.json(teamNames);
+  } catch (error) {
+    console.error(error); // Muestra el error en los logs del servidor
+    res.status(500).json({ error: 'Error al obtener los nombres de los equipos' });
   }
 });
 

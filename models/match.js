@@ -5,8 +5,9 @@ const matchSchema = new mongoose.Schema({
 
   // El equipo oponente puede ser un ObjectId (si está registrado en la plataforma) o un String (si no está registrado).
   equipoOponente: { 
-    type: mongoose.Schema.Types.Mixed, 
-    required: true 
+    type: mongoose.Schema.Types.Mixed, // Puede ser ObjectId o String para equipos no registrados
+    ref: "Team", 
+    required: false 
   },
 
   jugadoresEquipo: [

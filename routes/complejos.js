@@ -10,6 +10,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const User = require('../models/user');
 const cloudinary = require('cloudinary').v2; // Importar Cloudinary
+const CumpleReserva = require('../models/cumpleReserva')
 
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
@@ -178,9 +179,10 @@ router.delete('/complejos/:complejoId', async (req, res) => {
   }
 });
 
-// Obtener estadísticas del complejo
+// Obtener estadísticas del complejo (reservas de canchas y cumpleaños)
 router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;
+  const { startDate, endDate, canchaIds } = req.query;
 
   try {
     if (!isValidObjectId(complejoId)) {
@@ -192,14 +194,37 @@ router.get('/complejos/:complejoId/stats', authenticateUser, authorizeUserForCom
       return res.status(404).json({ message: 'Complejo no encontrado' });
     }
 
-    const reservas = await Reserva.find({ canchaId: { $in: complejo.canchas }, reservado: true }).sort({ horaInicio: 1 }).populate('canchaId', 'nombre');
-    
-    res.json(reservas);
+    const filter = {
+      horaInicio: { $gte: new Date(startDate), $lte: new Date(endDate) },
+    };
+
+    // Filtrar por canchas si se seleccionaron
+    if (canchaIds) {
+      filter.canchaId = { $in: canchaIds.split(',') };
+    }
+
+    // Consultar reservas de canchas
+    const reservasCanchas = await Reserva.find({ ...filter, reservado: true })
+      .populate('canchaId', 'nombre')
+      .sort({ horaInicio: 1 });
+
+    // Consultar reservas de cumpleaños (para el complejo específico)
+    const reservasCumple = await CumpleReserva.find({
+      complejoId,
+      horaInicio: { $gte: new Date(startDate), $lte: new Date(endDate) },
+    }).sort({ horaInicio: 1 });
+
+    // Devolver ambas listas en la respuesta
+    res.json({
+      reservasCanchas,
+      reservasCumple,
+    });
   } catch (error) {
     console.error('Error al obtener estadísticas del complejo:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 // Obtener reservas de un complejo
 router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserForComplejo, async (req, res) => {
   const { complejoId } = req.params;

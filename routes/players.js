@@ -256,6 +256,21 @@ router.get('/players/by-team/:teamId', async (req, res) => {
   }
 });
 
+// Ejemplo en el backend con Mongoose y MongoDB
+router.post('/players/involucrados', async (req, res) => {
+  console.log(req.body)
+  const { playerIds } = req.body; // IDs de jugadores involucrados
+  console.log(playerIds)
+  try {
+    const players = await Player.find({ _id: { $in: playerIds } });
+    console.log(players)
+    res.json(players);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener los jugadores' });
+  }
+});
+
+
 router.delete('/players/:playerId', async (req, res) => {
   const { playerId } = req.params;
 

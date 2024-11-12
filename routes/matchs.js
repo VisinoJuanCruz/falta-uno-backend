@@ -100,6 +100,17 @@ router.post('/:teamId/add-match', async (req, res) => {
   }
 });
 
+router.get('/match/:matchId/', async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const match = await Match.findById(matchId);
+    if (!match) return res.status(404).json({ message: 'Match no encontrado' });
+    res.json(match);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener el match' });
+  }
+})
+
 // Obtener partidos de un equipo
 router.get('/:teamId/matches', async (req, res) => {
   try {
@@ -132,7 +143,132 @@ router.get('/:teamId/matches', async (req, res) => {
   }
 });
 
-module.exports = router;
+// Editar un partido con manejo de reemplazo de jugadores
+router.put('/match/:matchId', async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const { tipoPartido, equipo, equipoOponente, jugadoresEquipo, jugadoresOponente, fecha, resultado } = req.body;
+
+    // Buscar el partido existente
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return res.status(404).json({ error: 'El partido no existe' });
+    }
+
+    // Verificar si el equipo existe
+    const equipoExistente = await Team.findById(equipo);
+    if (!equipoExistente) {
+      return res.status(400).json({ error: 'El equipo registrado no existe' });
+    }
+
+    let equipoOponenteExistente;
+    if (tipoPartido === 'Entrenamiento') {
+      req.body.equipoOponente = equipo;
+      req.body.jugadoresOponente = jugadoresOponente.map(j => ({ jugador: j.jugador, goles: j.goles }));
+    } else if (tipoPartido === 'Amistoso' || tipoPartido === 'Torneo') {
+      equipoOponenteExistente = await Team.findById(equipoOponente);
+      if (!equipoOponenteExistente && tipoPartido === 'Torneo') {
+        return res.status(400).json({ error: 'El equipo oponente debe estar registrado en torneos' });
+      }
+    }
+
+    // Actualizar estadísticas de jugadores que ya no están en la nueva lista (han sido reemplazados o eliminados)
+    const jugadoresEquipoIdsPrevios = match.jugadoresEquipo.map(j => j.jugador.toString());
+    const jugadoresEquipoIdsNuevos = jugadoresEquipo.map(j => j.jugador.toString());
+
+    for (const jugadorData of match.jugadoresEquipo) {
+      if (!jugadoresEquipoIdsNuevos.includes(jugadorData.jugador.toString())) {
+        const player = await Player.findById(jugadorData.jugador);
+        if (player) {
+          player.goles -= jugadorData.goles;
+          player.partidosJugados -= 1;
+          if (match.resultado.golesEquipo > match.resultado.golesOponente) {
+            player.partidosGanados -= 1;
+          } else if (match.resultado.golesEquipo < match.resultado.golesOponente) {
+            player.partidosPerdidos -= 1;
+          } else {
+            player.partidosEmpatados -= 1;
+          }
+          await player.save();
+        }
+      }
+    }
+
+    // Hacer lo mismo para los jugadores del equipo oponente
+    const jugadoresOponenteIdsPrevios = match.jugadoresOponente.map(j => j.jugador.toString());
+    const jugadoresOponenteIdsNuevos = jugadoresOponente.map(j => j.jugador.toString());
+
+    for (const jugadorData of match.jugadoresOponente) {
+      if (!jugadoresOponenteIdsNuevos.includes(jugadorData.jugador.toString())) {
+        const player = await Player.findById(jugadorData.jugador);
+        if (player) {
+          player.goles -= jugadorData.goles;
+          player.partidosJugados -= 1;
+          if (match.resultado.golesEquipo < match.resultado.golesOponente) {
+            player.partidosGanados -= 1;
+          } else if (match.resultado.golesEquipo > match.resultado.golesOponente) {
+            player.partidosPerdidos -= 1;
+          } else {
+            player.partidosEmpatados -= 1;
+          }
+          await player.save();
+        }
+      }
+    }
+
+    // Actualizar el partido con los nuevos datos
+    match.tipoPartido = tipoPartido;
+    match.equipo = equipo;
+    match.equipoOponente = equipoOponente;
+    match.jugadoresEquipo = jugadoresEquipo;
+    match.jugadoresOponente = jugadoresOponente;
+    match.fecha = fecha;
+    match.resultado = resultado;
+    await match.save();
+
+    // Agregar estadísticas de los jugadores actuales en el partido
+    for (const jugadorData of jugadoresEquipo) {
+      const player = await Player.findById(jugadorData.jugador);
+      if (player) {
+        player.goles += jugadorData.goles;
+        player.partidosJugados += 1;
+        if (resultado.golesEquipo > resultado.golesOponente) {
+          player.partidosGanados += 1;
+        } else if (resultado.golesEquipo < resultado.golesOponente) {
+          player.partidosPerdidos += 1;
+        } else {
+          player.partidosEmpatados += 1;
+        }
+        await player.save();
+      }
+    }
+
+    // Hacer lo mismo para los jugadores actuales del equipo oponente, si está registrado
+    if (equipoOponenteExistente) {
+      for (const jugadorData of jugadoresOponente) {
+        const player = await Player.findById(jugadorData.jugador);
+        if (player) {
+          player.goles += jugadorData.goles;
+          player.partidosJugados += 1;
+          if (resultado.golesEquipo < resultado.golesOponente) {
+            player.partidosGanados += 1;
+          } else if (resultado.golesEquipo > resultado.golesOponente) {
+            player.partidosPerdidos += 1;
+          } else {
+            player.partidosEmpatados += 1;
+          }
+          await player.save();
+        }
+      }
+    }
+
+    res.status(200).json({ message: 'Partido actualizado exitosamente', match });
+  } catch (error) {
+    console.error('Error al editar el partido:', error);
+    res.status(500).json({ error: 'Hubo un problema al editar el partido' });
+  }
+});
+
 
 
 module.exports = router;

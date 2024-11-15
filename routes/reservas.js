@@ -6,7 +6,7 @@ const Cancha = require('../models/cancha');
 
 // Obtener todas las reservas
 router.get('/reservas', async (req, res) => {
-  console.log(req.query)
+  
   try {
     const { fecha, canchaId, page = 1, limit = 50 } = req.query;
     const query = {};
@@ -105,7 +105,6 @@ router.put('/reservas/:id', async (req, res) => {
     const updatedReserva = await reserva.save();
 
     res.json(updatedReserva);
-    console.log("UPDATE RESERVA:", updatedReserva);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Error interno del servidor' });

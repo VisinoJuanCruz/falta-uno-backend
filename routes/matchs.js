@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 
 // Agregar un partido
 router.post('/:teamId/add-match', async (req, res) => {
-  console.log(req.body)
+  
   try {
     const { tipoPartido, equipo, equipoOponente, jugadoresEquipo, jugadoresOponente, fecha, resultado } = req.body;
 
@@ -20,15 +20,20 @@ router.post('/:teamId/add-match', async (req, res) => {
     // Verificar que haya al menos 5 jugadores en el equipo
     if (jugadoresEquipo.length < 5) {
       return res.status(400).json({ error: 'Debes seleccionar al menos 5 jugadores para tu equipo' });
+    }else if(jugadoresEquipo.length > 11){
+      return res.status(400).json({ error: 'Debes seleccionar como mucho 11 jugadores para tu equipo' });
     }
 
     // Lógica según el tipo de partido
     let equipoOponenteExistente;
+    console.log(tipoPartido === 'Entrenamiento')
     if (tipoPartido === 'Entrenamiento') {
       req.body.equipoOponente = equipo;
       req.body.jugadoresOponente = jugadoresOponente.map(j => ({ jugador: j.jugador, goles: j.goles }));
+      equipoOponenteExistente = true
     } else if (tipoPartido === 'Amistoso') {
       if (mongoose.Types.ObjectId.isValid(equipoOponente)) {
+        
         equipoOponenteExistente = await Team.findById(equipoOponente);
         if (!equipoOponenteExistente) {
           return res.status(400).json({ error: 'El equipo oponente no existe en la plataforma' });
@@ -46,13 +51,12 @@ router.post('/:teamId/add-match', async (req, res) => {
     // Crear y guardar el partido
     const match = new Match(req.body);
     await match.save();
-    console.log("SE GUARDA ESTO:",match)
 
     // Agregar el partido al equipo y, si aplica, al equipo oponente
     equipoExistente.matches.push(match._id);
     await equipoExistente.save();
 
-    if (equipoOponenteExistente) {
+    if (equipoOponenteExistente && tipoPartido !== 'Entrenamiento') {
       equipoOponenteExistente.matches.push(match._id);
       await equipoOponenteExistente.save();
     }
@@ -73,8 +77,8 @@ router.post('/:teamId/add-match', async (req, res) => {
         await player.save();
       }
     }
-
     // Actualizar estadísticas de jugadores del equipo oponente, si está registrado
+    console.log("SE METE?",equipoOponenteExistente)
     if (equipoOponenteExistente) {
       for (const jugadorData of jugadoresOponente) {
         const player = await Player.findById(jugadorData.jugador);
@@ -103,7 +107,7 @@ router.post('/:teamId/add-match', async (req, res) => {
 router.get('/match/:matchId/', async (req, res) => {
   try {
     const { matchId } = req.params;
-    const match = await Match.findById(matchId);
+    const match = await Match.findById(matchId).populate('equipoOponente').populate('equipo')
     if (!match) return res.status(404).json({ message: 'Match no encontrado' });
     res.json(match);
   } catch (error) {
@@ -268,6 +272,78 @@ router.put('/match/:matchId', async (req, res) => {
     res.status(500).json({ error: 'Hubo un problema al editar el partido' });
   }
 });
+
+
+// Controlador para eliminar un partido
+router.delete('/match/:matchId', async (req, res) => {
+  const { matchId } = req.params; // Obtiene el ID del partido de los parámetros de la ruta
+
+  try {
+    // Encuentra el partido a eliminar
+    const match = await Match.findById(matchId).populate('equipo').populate('jugadoresEquipo.jugador').populate('jugadoresOponente.jugador');
+    if (!match) {
+      return res.status(404).json({ message: 'Partido no encontrado' });
+    }
+
+    // Actualiza el equipo eliminando el partido de su lista de partidos
+    const team = await Team.findById(match.equipo);
+    if (team) {
+      team.matches = team.matches.filter(id => id.toString() !== matchId);
+      await team.save();
+    }
+
+    // Actualiza estadísticas de los jugadores de `jugadoresEquipo`
+    for (const jugadorData of match.jugadoresEquipo) {
+      const jugador = await Player.findById(jugadorData.jugador);
+      if (jugador) {
+        jugador.goles -= jugadorData.goles;
+        jugador.partidosJugados -= 1;
+        
+        // Ajusta los partidos ganados, perdidos o empatados según el resultado del partido
+        if (match.resultado.golesEquipo > match.resultado.golesOponente) {
+          jugador.partidosGanados -= 1;
+        } else if (match.resultado.golesEquipo < match.resultado.golesOponente) {
+          jugador.partidosPerdidos -= 1;
+        } else {
+          jugador.partidosEmpatados -= 1;
+        }
+        
+        await jugador.save();
+      }
+    }
+
+    // Actualiza estadísticas de los jugadores de `jugadoresOponente`
+    for (const jugadorData of match.jugadoresOponente) {
+      const jugador = await Player.findById(jugadorData.jugador);
+      if (jugador) {
+        jugador.goles -= jugadorData.goles;
+        jugador.partidosJugados -= 1;
+        
+        // Ajusta los partidos ganados, perdidos o empatados según el resultado del partido
+        if (match.resultado.golesOponente > match.resultado.golesEquipo) {
+          jugador.partidosGanados -= 1;
+        } else if (match.resultado.golesOponente < match.resultado.golesEquipo) {
+          jugador.partidosPerdidos -= 1;
+        } else {
+          jugador.partidosEmpatados -= 1;
+        }
+        
+        await jugador.save();
+      }
+    }
+
+    // Elimina el partido de la colección
+    await Match.findByIdAndDelete(matchId);
+
+    res.status(200).json({ message: 'Partido eliminado correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al eliminar el partido' });
+  }
+});
+
+
+
 
 
 

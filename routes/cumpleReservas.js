@@ -43,7 +43,7 @@ router.get('/cumple/:complejoId', async (req, res) => {
 });
 
 router.get('/cumple-by-id/:cumpleId', async (req, res) => {
-  console.log("BIENVENIDO AL BACKEND"); // Esto debería ejecutarse si la ruta es alcanzada
+   // Esto debería ejecutarse si la ruta es alcanzada
   const { cumpleId } = req.params;
 
   try {
@@ -67,14 +67,12 @@ router.post('/cumple', async (req, res) => {
   // Usar directamente los valores de horaInicio y horaFin
   const inicio = new Date(horaInicio);
   const fin = new Date(horaFin);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
   
   // Restar 3 horas solo si estamos en desarrollo
   if (process.env.NODE_ENV === 'development') {
     inicio.setHours(inicio.getHours() - 3);
     fin.setHours(fin.getHours() - 3);
   }
-  console.log(inicio, fin); // Muestra las fechas convertidas
 
   if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
     return res.status(400).json({ message: 'Las horas proporcionadas no son válidas.' });

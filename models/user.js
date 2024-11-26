@@ -10,7 +10,15 @@ const userSchema = new mongoose.Schema({
   complejos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Complejo' }],
   isVerified: { type: Boolean, default: false }, // Campo para confirmar si el email ha sido verificado
   verificationToken: { type: String }, // Campo para almacenar el token de verificación
-  habilitarWhatsapp: { type: Boolean, default: false } // Nuevo campo para permitir o no ser contactado por WhatsApp
+  habilitarWhatsapp: { type: Boolean, default: false }, // Nuevo campo para permitir o no ser contactado por WhatsApp
+  solicitudesVinculacion: [
+    {
+      playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+      requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    },
+  ],
+  
+  jugadoresVinculados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }] // Jugadores ya vinculados
 });
 
 const User = mongoose.model('User', userSchema);

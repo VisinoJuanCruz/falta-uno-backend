@@ -264,7 +264,6 @@ router.get('/complejos/:complejoId/reservas', authenticateUser, authorizeUserFor
 // Buscar complejos con canchas disponibles
 router.post('/complejos/buscar', async (req, res) => {
   const { startDate } = req.body;
-  console.log("llega al back:",startDate)
   try {
     const complejosConDisponibilidad = await buscarComplejosConCanchaLibre(startDate);
     res.json(complejosConDisponibilidad);

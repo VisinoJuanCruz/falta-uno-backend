@@ -7,6 +7,8 @@ const playerSchema = new mongoose.Schema({
   puntajeDefendiendo: { type: Number, required: true },
   puntajeAtajando: { type: Number, required: true },
   equipo: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', required: true },
+  usuarioVinculado: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Usuario vinculado
+  estadoVinculacion: { type: String, enum: ['pending', 'linked'], default: 'pending' }, // Estado del vínculo
   goles: { type: Number, default: 0 },             // Goles totales del jugador
   partidosJugados: { type: Number, default: 0 },   // Número de partidos jugados
   partidosGanados: { type: Number, default: 0 },   // Número de partidos ganados

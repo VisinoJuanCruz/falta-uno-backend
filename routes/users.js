@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
+const Player = require('../models/player')
 const { sendVerificationEmail} = require('../utils/mailer');
 
 const router = express.Router();
@@ -159,7 +160,7 @@ router.put('/profile/change-password', passport.authenticate('jwt', { session: f
     }
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
-    console.log(isMatch)
+    
     if (!isMatch) {
       return res.status(400).json({ message: 'La contraseña anterior es incorrecta' });
     }
@@ -196,6 +197,77 @@ router.post('/reset-password', async (req, res) => {
   } catch (error) {
     console.error('Error al restablecer contraseña:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/users/:userId/linked-players', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const linkedPlayers = await Player.find({ usuarioVinculado: userId }).populate('equipo');
+   
+    res.status(200).json(linkedPlayers);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener jugadores vinculados', error });
+  }
+});
+
+router.put('/users/:userId/unlink-player/:playerId',async (req, res) => {
+  const { userId, playerId } = req.params;
+
+  try {
+    // Buscar al usuario
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Buscar al jugador
+    const player = await Player.findById(playerId);
+    if (!player) {
+      return res.status(404).json({ message: 'Jugador no encontrado' });
+    }
+
+    // Verificar si el jugador está vinculado al usuario
+    if (!user.jugadoresVinculados.includes(playerId)) {
+      return res.status(400).json({ message: 'El jugador no está vinculado a este usuario' });
+    }
+
+    // Quitar el jugador de la lista de jugadores vinculados del usuario
+    user.jugadoresVinculados = user.jugadoresVinculados.filter(
+      (id) => id.toString() !== playerId
+    );
+    await user.save();
+
+    // Actualizar el estado del jugador
+    player.estadoVinculacion = 'pending';
+    player.usuarioVinculado = null;
+    await player.save();
+
+    res.status(200).json({ message: 'Jugador desvinculado correctamente' });
+  } catch (error) {
+    console.error('Error al desvincular jugador:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para obtener el número de solicitudes de vinculación
+router.get('/user/solicitudes/count/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Busca al usuario por ID y selecciona solo el campo solicitudesVinculacion
+    const user = await User.findById(userId).select('solicitudesVinculacion');
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Devuelve la longitud del array de solicitudes de vinculación
+    res.json({ count: user.solicitudesVinculacion.length });
+  } catch (error) {
+    console.error('Error al obtener la cantidad de solicitudes de vinculación:', error);
+    res.status(500).json({ message: 'Error al obtener la cantidad de solicitudes de vinculación' });
   }
 });
 

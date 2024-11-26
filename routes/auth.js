@@ -47,6 +47,7 @@ router.post('/login', async (req, res) => {
         equiposCreados: user.equiposCreados,
         role: user.role,
         complejos: user.complejos,
+        solicitudesVinculacion: user.solicitudesVinculacion
       };
 
       return res.json({ token, user: userData });
@@ -117,7 +118,15 @@ const authenticateJWT = (req, res, next) => {
 // Ruta para obtener el perfil del usuario autenticado
 router.get('/profile', authenticateJWT, (req, res) => {
   // Devolver los datos del usuario sin la contraseña
-  const userData = { _id: req.user._id, name: req.user.name, mail: req.user.mail, whatsapp: req.user.whatsapp, equiposCreados: req.user.equiposCreados, role: req.user.role, complejos: req.user.complejos };
+  const userData = { 
+    _id: req.user._id,
+     name: req.user.name,
+      mail: req.user.mail,
+       whatsapp: req.user.whatsapp,
+        equiposCreados: req.user.equiposCreados,
+         role: req.user.role,
+          complejos: req.user.complejos,
+          solicitudesVinculacion: req.user.solicitudesVinculacion};
   
   res.json(userData);
 });
@@ -131,7 +140,6 @@ router.post('/reset-password-request', async (req, res) => {
   try {
     // Busca al usuario por su correo electrónico
     const user = await User.findOne({ mail });
-    console.log(user)
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }

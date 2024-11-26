@@ -26,7 +26,6 @@ router.post('/:teamId/add-match', async (req, res) => {
 
     // Lógica según el tipo de partido
     let equipoOponenteExistente;
-    console.log(tipoPartido === 'Entrenamiento')
     if (tipoPartido === 'Entrenamiento') {
       req.body.equipoOponente = equipo;
       req.body.jugadoresOponente = jugadoresOponente.map(j => ({ jugador: j.jugador, goles: j.goles }));
@@ -78,7 +77,7 @@ router.post('/:teamId/add-match', async (req, res) => {
       }
     }
     // Actualizar estadísticas de jugadores del equipo oponente, si está registrado
-    console.log("SE METE?",equipoOponenteExistente)
+    
     if (equipoOponenteExistente) {
       for (const jugadorData of jugadoresOponente) {
         const player = await Player.findById(jugadorData.jugador);

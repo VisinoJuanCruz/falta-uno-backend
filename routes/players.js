@@ -2,6 +2,7 @@
 const express = require('express');
 const Player = require('../models/player');
 const Team = require('../models/team');
+const User = require('../models/user')
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -294,5 +295,191 @@ router.delete('/players/:playerId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al eliminar jugador' });
   }
 });
+
+router.post('/players/:playerId/request-link', async (req, res) => {
+  const { requesterId } = req.body; // Usuario solicitante
+  const { playerId } = req.params;
+
+  try {
+    // Verificar que el jugador existe
+    const player = await Player.findById(playerId).populate('equipo');
+    if (!player) {
+      return res.status(404).json({ message: 'Jugador no encontrado.' });
+    }
+
+    // Verificar que el usuario solicitante existe
+    const user = await User.findById(requesterId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario solicitante no encontrado.' });
+    }
+
+    // Verificar que el jugador no está ya vinculado
+    if (player.usuarioVinculado) {
+      return res.status(400).json({ message: 'Este jugador ya está vinculado a otro usuario.' });
+    }
+
+    // Obtener al propietario del equipo
+    const owner = await User.findById(player.equipo.creadoPor);
+    if (!owner) {
+      return res.status(404).json({ message: 'Propietario del equipo no encontrado.' });
+    }
+
+    // Verificar que no exista una solicitud pendiente para este jugador y usuario
+    const solicitudExistente = owner.solicitudesVinculacion.some(
+      (solicitud) => solicitud.playerId.toString() === playerId && solicitud.requesterId.toString() === requesterId
+    );
+
+    if (solicitudExistente) {
+      return res.status(400).json({ message: 'Ya existe una solicitud pendiente para este jugador.' });
+    }
+
+    // Agregar solicitud al propietario del equipo
+   
+    owner.solicitudesVinculacion.push({ playerId, requesterId });
+    await owner.save();
+
+    // Marcar jugador como pendiente de vinculación
+    player.estadoVinculacion = 'pending';
+    await player.save();
+
+    res.status(200).json({ message: 'Solicitud enviada correctamente.' });
+  } catch (error) {
+    console.error('Error al enviar la solicitud:', error);
+    res.status(500).json({ message: 'Error al enviar la solicitud.', error });
+  }
+});
+
+router.post('/players/:playerId/handle-link', async (req, res) => {
+  const { decision, requesterId } = req.body; // `decision` puede ser "accept" o "reject"
+  const { playerId } = req.params;
+ 
+
+  try {
+    // Validar el valor de decision
+    if (!['accept', 'reject'].includes(decision)) {
+      return res.status(400).json({ message: 'Decisión no válida. Debe ser "accept" o "reject".' });
+    }
+
+    // Obtener jugador y usuario solicitante
+    const [player, requester] = await Promise.all([
+      Player.findById(playerId).populate('equipo'),
+      User.findById(requesterId),
+    ]);
+
+    if (!player) return res.status(404).json({ message: 'Jugador no encontrado.' });
+    if (!requester) return res.status(404).json({ message: 'Usuario solicitante no encontrado.' });
+    if (!player.equipo) return res.status(404).json({ message: 'El jugador no tiene equipo asociado.' });
+
+    // Obtener propietario del equipo
+    const owner = await User.findById(player.equipo.creadoPor);
+    if (!owner) return res.status(404).json({ message: 'Propietario del equipo no encontrado.' });
+
+    // Verificar si la solicitud existe
+    const solicitudExiste = owner.solicitudesVinculacion.some(
+      (solicitud) =>
+        solicitud.playerId.toString() === playerId && solicitud.requesterId.toString() === requesterId
+    );
+
+    if (!solicitudExiste) {
+      return res
+        .status(400)
+        .json({ message: 'No existe una solicitud pendiente para este jugador y usuario.' });
+    }
+
+    if (decision === 'accept') {
+      // Verificar si el usuario ya está vinculado a otro jugador del mismo equipo
+      const jugadoresVinculados = await Player.find({
+        _id: { $in: requester.jugadoresVinculados },
+        equipo: player.equipo._id,
+      });
+
+      if (jugadoresVinculados.length > 0) {
+        return res
+          .status(400)
+          .json({ message: 'El usuario ya está vinculado a un jugador de este equipo.' });
+      }
+
+      // Vincular jugador al usuario solicitante
+      player.usuarioVinculado = requester._id;
+      player.estadoVinculacion = 'linked';
+      requester.jugadoresVinculados.push(playerId);
+    }
+
+    // Eliminar la solicitud independientemente de la decisión
+    owner.solicitudesVinculacion = owner.solicitudesVinculacion.filter(
+      (solicitud) =>
+        solicitud.playerId.toString() !== playerId || solicitud.requesterId.toString() !== requesterId
+    );
+
+    // Guardar cambios según la decisión
+    if (decision === 'accept') {
+      await Promise.all([player.save(), requester.save(), owner.save()]);
+    } else {
+      await owner.save(); // Solo guardamos al propietario en caso de "reject"
+    }
+
+    res
+      .status(200)
+      .json({ message: `Solicitud ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
+  } catch (error) {
+    console.error('Error al manejar la solicitud de vinculación:', error);
+    res.status(500).json({ message: 'Error al gestionar la solicitud.', error });
+  }
+});
+
+
+
+router.get('/players/link-requests/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Obtener al usuario
+    const user = await User.findById(userId).populate('solicitudesVinculacion');
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado.' });
+    }
+
+    // Filtrar solicitudes de vinculación
+    const requests = await Promise.all(
+      user.solicitudesVinculacion.map(async ({ playerId, requesterId }) => {
+        try {
+          const [player, requester] = await Promise.all([
+            Player.findById(playerId).populate('equipo'),
+            User.findById(requesterId),
+          ]);
+
+          if (!player || !requester) {
+            console.warn(`Datos faltantes: playerId=${playerId}, requesterId=${requesterId}`);
+            return null; // Ignorar si faltan datos
+          }
+
+          return {
+            playerId: player._id,
+            playerName: player.name,
+            requesterName: requester.name,
+            playerTeam: player.equipo?.nombre || 'Sin equipo',
+            requesterId: requester._id
+          };
+        } catch (err) {
+          console.error('Error en solicitud individual:', err);
+          return null; // Ignorar errores individuales
+        }
+      })
+    );
+
+    // Filtrar resultados nulos
+    const filteredRequests = requests.filter((request) => request !== null);
+
+    return res.status(200).json(filteredRequests); // Solo una respuesta
+  } catch (error) {
+    console.error('Error al obtener solicitudes de vinculación:', error);
+    return res.status(500).json({ message: 'Error al obtener solicitudes de vinculación.', error });
+  }
+});
+
+
+
+
 
 module.exports = router;

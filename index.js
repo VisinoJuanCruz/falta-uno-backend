@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 3001;
 
 // Configuración de CORS
 app.use(cors({
-  origin: ['https://www.somosfulbo.com', 'https://somosfulbo.com', 'http://localhost:5173'],
+  origin: '*',
   credentials: true,
 }));
 
@@ -33,7 +33,7 @@ app.use('/images', express.static('images'));
 
 
 
-mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/main`);
+mongoose.connect(`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}/develop`);
 
 // Configuración de express-session
 app.use(session({
